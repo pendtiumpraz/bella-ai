@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     let chatInterface;
     let videoManager;
     let bellaAvatar;
-    let isAvatarMode = false;
+    let isAvatarMode = true; // Start with avatar mode by default
     
     // Initialize video emotion manager
     videoManager = new VideoManager();
@@ -30,6 +30,15 @@ document.addEventListener('DOMContentLoaded', async function() {
     const toggleBtn = document.getElementById('toggle-avatar-mode');
     const avatarContainer = document.getElementById('avatar-container');
     const videoContainer = document.getElementById('video-container');
+    
+    // Set initial state to avatar mode
+    if (isAvatarMode) {
+        videoContainer.style.display = 'none';
+        avatarContainer.style.display = 'flex';
+        toggleBtn.innerHTML = '<i class="fas fa-film"></i> Switch to Video';
+        video1.pause();
+        video2.pause();
+    }
     
     toggleBtn.addEventListener('click', () => {
         isAvatarMode = !isAvatarMode;

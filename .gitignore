@@ -1,6 +1,9 @@
 # Dependencies
 /node_modules
 
+# Model files (too large for GitHub)
+/models/
+
 # IDEs and editors
 .idea/
 .vscode/

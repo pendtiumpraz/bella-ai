@@ -38,7 +38,9 @@ class BellaAI {
         // 优先加载LLM模型（聊天功能）
         try {
             console.log('Loading LLM model...');
-            this.llm = await pipeline('text2text-generation', 'Xenova/LaMini-Flan-T5-77M');
+            this.llm = await pipeline('text2text-generation', 'Xenova/LaMini-Flan-T5-77M', {
+                quantized: false  // Use non-quantized models
+            });
             console.log('LLM model loaded successfully.');
         } catch (error) {
             console.error('Failed to load LLM model:', error);
@@ -48,10 +50,9 @@ class BellaAI {
         // 尝试加载ASR模型（语音识别功能）
         try {
             console.log('Loading ASR model...');
-            const modelPath = 'Xenova/whisper-asr';
-            const tokenizer = await AutoTokenizer.from_pretrained(modelPath);
-            const model = await AutoModelForSpeechSeq2Seq.from_pretrained(modelPath);
-            this.asr = await pipeline('automatic-speech-recognition', model, { tokenizer });
+            this.asr = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
+                quantized: false  // Use non-quantized models
+            });
             console.log('ASR model loaded successfully.');
         } catch (error) {
             console.warn('ASR model failed to load, voice recognition will be disabled:', error);

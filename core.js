@@ -25,8 +25,11 @@ class BellaAI {
 
     constructor() {
         this.cloudAPI = new CloudAPIService();
-        this.useCloudAPI = false; // 默认使用本地模型
+        this.useCloudAPI = true; // 默认使用云端API
         this.currentMode = 'casual'; // 聊天模式：casual, assistant, creative
+        
+        // 设置默认为Gemini（已有API key）
+        this.cloudAPI.switchProvider('gemini');
     }
 
     async init() {

@@ -38,6 +38,53 @@ class CloudAPIService {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer YOUR_GLM_API_KEY'
                 }
+            },
+            // Hyperbolic DeepSeek V3配置
+            hyperbolic_deepseek_v3: {
+                baseURL: 'https://api.hyperbolic.xyz/v1/chat/completions',
+                model: 'deepseek-ai/DeepSeek-V3',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzYXVuYV9zY293bGluZzg5MkBzaW1wbGVsb2dpbi5jb20iLCJpYXQiOjE3Mzk3NzIyNjd9.harRWOk0mrFxYFzCByEQPBL_eCbPI31NBOgQe0eXIig'
+                }
+            },
+            // Hyperbolic DeepSeek R1配置
+            hyperbolic_deepseek_r1: {
+                baseURL: 'https://api.hyperbolic.xyz/v1/chat/completions',
+                model: 'deepseek-ai/DeepSeek-R1',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer YOUR_HYPERBOLIC_API_KEY'
+                }
+            },
+            // Hyperbolic Qwen配置
+            hyperbolic_qwen: {
+                baseURL: 'https://api.hyperbolic.xyz/v1/chat/completions',
+                model: 'Qwen/Qwen2.5-72B-Instruct',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer YOUR_HYPERBOLIC_API_KEY'
+                }
+            },
+            // OpenRouter配置
+            openrouter: {
+                baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+                model: 'anthropic/claude-3.5-sonnet',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer YOUR_OPENROUTER_API_KEY',
+                    'HTTP-Referer': 'http://localhost:8081',
+                    'X-Title': 'Bella AI'
+                }
+            },
+            // Google Gemini配置
+            gemini: {
+                baseURL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
+                model: 'gemini-pro',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                apiKey: 'AIzaSyBgVNvJp88oDPsqERwMbZCjCV6fqDXIShg'
             }
         };
         
@@ -49,10 +96,14 @@ class CloudAPIService {
     // 设置API密钥
     setAPIKey(provider, apiKey) {
         if (this.apiConfigs[provider]) {
-            if (provider === 'openai' || provider === 'qwen' || provider === 'glm') {
+            if (provider === 'openai' || provider === 'qwen' || provider === 'glm' || 
+                provider === 'hyperbolic_deepseek_v3' || provider === 'hyperbolic_deepseek_r1' || 
+                provider === 'hyperbolic_qwen' || provider === 'openrouter') {
                 this.apiConfigs[provider].headers['Authorization'] = `Bearer ${apiKey}`;
             } else if (provider === 'ernie') {
                 this.apiConfigs[provider].accessToken = apiKey;
+            } else if (provider === 'gemini') {
+                this.apiConfigs[provider].apiKey = apiKey;
             }
             return true;
         }
@@ -118,6 +169,17 @@ class CloudAPIService {
                     break;
                 case 'glm':
                     response = await this.callGLM(userMessage);
+                    break;
+                case 'hyperbolic_deepseek_v3':
+                case 'hyperbolic_deepseek_r1':
+                case 'hyperbolic_qwen':
+                    response = await this.callHyperbolic(userMessage);
+                    break;
+                case 'openrouter':
+                    response = await this.callOpenRouter(userMessage);
+                    break;
+                case 'gemini':
+                    response = await this.callGemini(userMessage);
                     break;
                 default:
                     throw new Error(`未实现的AI服务提供商: ${this.currentProvider}`);
@@ -250,6 +312,106 @@ class CloudAPIService {
         return data.choices[0].message.content.trim();
     }
 
+    // Hyperbolic API调用
+    async callHyperbolic(userMessage) {
+        const config = this.apiConfigs.hyperbolic;
+        const messages = [
+            this.getBellaSystemPrompt(),
+            ...this.conversationHistory
+        ];
+
+        const response = await fetch(config.baseURL, {
+            method: 'POST',
+            headers: config.headers,
+            body: JSON.stringify({
+                model: config.model,
+                messages: messages,
+                max_tokens: 150,
+                temperature: 0.8,
+                top_p: 0.9
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Hyperbolic API错误: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+    }
+
+    // OpenRouter API调用
+    async callOpenRouter(userMessage) {
+        const config = this.apiConfigs.openrouter;
+        const messages = [
+            this.getBellaSystemPrompt(),
+            ...this.conversationHistory
+        ];
+
+        const response = await fetch(config.baseURL, {
+            method: 'POST',
+            headers: config.headers,
+            body: JSON.stringify({
+                model: config.model,
+                messages: messages,
+                max_tokens: 150,
+                temperature: 0.8,
+                top_p: 0.9
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`OpenRouter API错误: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+    }
+
+    // Google Gemini API调用
+    async callGemini(userMessage) {
+        const config = this.apiConfigs.gemini;
+        
+        // Gemini使用不同的消息格式
+        const parts = [];
+        
+        // 添加系统提示作为第一部分
+        parts.push({
+            text: this.getBellaSystemPrompt().content
+        });
+        
+        // 添加历史对话
+        this.conversationHistory.forEach(msg => {
+            parts.push({
+                text: `${msg.role === 'user' ? '用户' : '贝拉'}: ${msg.content}`
+            });
+        });
+
+        const url = `${config.baseURL}?key=${config.apiKey}`;
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: config.headers,
+            body: JSON.stringify({
+                contents: [{
+                    parts: parts
+                }],
+                generationConfig: {
+                    temperature: 0.8,
+                    topP: 0.9,
+                    maxOutputTokens: 150
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Gemini API错误: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.candidates[0].content.parts[0].text.trim();
+    }
+
     // 清除对话历史
     clearHistory() {
         this.conversationHistory = [];
@@ -270,11 +432,15 @@ class CloudAPIService {
         
         if (provider === 'ernie') {
             return !!config.accessToken;
+        } else if (provider === 'gemini') {
+            return config.apiKey && config.apiKey !== 'YOUR_GEMINI_API_KEY';
         } else {
             return config.headers['Authorization'] && 
                    config.headers['Authorization'] !== 'Bearer YOUR_OPENAI_API_KEY' &&
                    config.headers['Authorization'] !== 'Bearer YOUR_QWEN_API_KEY' &&
-                   config.headers['Authorization'] !== 'Bearer YOUR_GLM_API_KEY';
+                   config.headers['Authorization'] !== 'Bearer YOUR_GLM_API_KEY' &&
+                   config.headers['Authorization'] !== 'Bearer YOUR_HYPERBOLIC_API_KEY' &&
+                   config.headers['Authorization'] !== 'Bearer YOUR_OPENROUTER_API_KEY';
         }
     }
 }

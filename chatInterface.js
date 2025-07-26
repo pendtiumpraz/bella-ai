@@ -103,11 +103,16 @@ class ChatInterface {
                 <div class="bella-setting-group">
                     <label>AI服务提供商</label>
                     <select class="bella-provider-select">
-                        <option value="local">本地模型</option>
+                        <option value="gemini" selected>Google Gemini</option>
+                        <option value="hyperbolic_deepseek_v3">Hyperbolic DeepSeek V3</option>
+                        <option value="hyperbolic_deepseek_r1">Hyperbolic DeepSeek R1</option>
+                        <option value="hyperbolic_qwen">Hyperbolic Qwen</option>
+                        <option value="openrouter">OpenRouter</option>
                         <option value="openai">OpenAI GPT</option>
                         <option value="qwen">通义千问</option>
                         <option value="ernie">文心一言</option>
                         <option value="glm">智谱AI</option>
+                        <option value="local">本地模型</option>
                     </select>
                 </div>
                 <div class="bella-setting-group bella-api-key-group" style="display: none;">
@@ -184,7 +189,7 @@ class ChatInterface {
         
         providerSelect.addEventListener('change', (e) => {
             const provider = e.target.value;
-            if (provider === 'local') {
+            if (provider === 'local' || provider === 'gemini') {
                 apiKeyGroup.style.display = 'none';
             } else {
                 apiKeyGroup.style.display = 'block';

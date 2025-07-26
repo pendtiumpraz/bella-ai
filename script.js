@@ -56,6 +56,23 @@ document.addEventListener('DOMContentLoaded', async function() {
                     chatInterface.addMessage('assistant', '抱歉，我现在有点困惑，请稍后再试...');
                 }
             };
+            
+            // 设置提供商切换回调
+            chatInterface.onProviderChange = (provider) => {
+                console.log('切换AI提供商到:', provider);
+                if (provider === 'local') {
+                    bellaAI.useCloudAPI = false;
+                } else {
+                    bellaAI.useCloudAPI = true;
+                    bellaAI.cloudAPI.switchProvider(provider);
+                }
+            };
+            
+            // 设置API密钥保存回调
+            chatInterface.onAPIKeySave = (provider, apiKey) => {
+                console.log('保存API密钥:', provider);
+                bellaAI.cloudAPI.setAPIKey(provider, apiKey);
+            };
         }
         
         micButton.disabled = false;

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D L2D Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #1a1a2e;
+            font-family: Arial, sans-serif;
+        }
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        button {
+            margin: 0 5px;
+            padding: 10px 20px;
+            background: #ff6b9d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #ff5580;
+        }
+        .error {
+            color: #ff6b6b;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Live2D Alternative Viewer</h3>
+        <p>Model: <span id="model-name">None</span></p>
+        <p>Status: <span id="status">Ready</span></p>
+        <p>Method: <span id="method">L2D Framework</span></p>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="playAnimation()">Play Animation</button>
+        <button onclick="changeExpression()">Change Expression</button>
+        <button onclick="speak('Halo! Aku adalah ' + currentModelName)">Test Speak</button>
+        <button onclick="resetModel()">Reset</button>
+    </div>
+
+    <!-- Alternative approach using l2d.js -->
+    <script src="https://unpkg.com/pixi.js@5.3.3/dist/pixi.min.js"></script>
+    <!-- Try live2d.js from different CDN -->
+    <script src="https://cdn.jsdelivr.net/gh/xiazeyu/live2d-widget.js@master/lib/L2Dwidget.min.js"></script>
+    
+    <script>
+        let app = null;
+        let modelContainer = null;
+        let currentModelName = 'Model';
+        let modelData = null;
+        let isAnimating = false;
+        
+        // Initialize PIXI
+        function init() {
+            const canvas = document.getElementById('canvas');
+            
+            app = new PIXI.Application({
+                view: canvas,
+                width: window.innerWidth,
+                height: window.innerHeight,
+                backgroundColor: 0x1a1a2e,
+                resolution: window.devicePixelRatio || 1,
+                autoDensity: true,
+                antialias: true
+            });
+            
+            document.getElementById('status').textContent = 'Initialized';
+        }
+        
+        // Load Live2D Model with custom implementation
+        async function loadLive2DModel(modelPath) {
+            try {
+                document.getElementById('status').textContent = 'Loading model...';
+                
+                // Clean path
+                if (modelPath.startsWith('/mnt/')) {
+                    modelPath = modelPath.replace('/mnt/d/AI/Bella/', '');
+                }
+                
+                // Get model name
+                const pathParts = modelPath.split('/');
+                currentModelName = pathParts[pathParts.length - 1]
+                    .replace('.model.json', '')
+                    .replace('.model3.json', '');
+                document.getElementById('model-name').textContent = currentModelName;
+                
+                // Clear previous model
+                if (modelContainer) {
+                    app.stage.removeChild(modelContainer);
+                    modelContainer.destroy({ children: true });
+                }
+                
+                modelContainer = new PIXI.Container();
+                
+                // Load model data
+                const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
+                const response = await fetch(modelPath);
+                modelData = await response.json();
+                
+                // Try L2D widget approach
+                try {
+                    document.getElementById('method').textContent = 'L2D Widget';
+                    
+                    // Create L2D widget
+                    L2Dwidget.init({
+                        model: {
+                            jsonPath: modelPath,
+                            scale: 1
+                        },
+                        display: {
+                            position: 'right',
+                            width: 300,
+                            height: 400,
+                            hOffset: 0,
+                            vOffset: 0
+                        },
+                        mobile: {
+                            show: true,
+                            scale: 0.5
+                        },
+                        react: {
+                            opacityDefault: 1,
+                            opacityOnHover: 1
+                        }
+                    });
+                    
+                    document.getElementById('status').textContent = 'Model loaded with L2D Widget';
+                    
+                } catch (widgetError) {
+                    console.warn('L2D Widget failed, using custom loader');
+                    await loadCustomModel(modelData, modelDir);
+                }
+                
+            } catch (error) {
+                console.error('Error loading model:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        // Custom model loader
+        async function loadCustomModel(modelData, modelDir) {
+            document.getElementById('method').textContent = 'Custom Loader';
+            
+            // Load textures
+            let texturePath = modelData.textures?.[0] || modelData.FileReferences?.Textures?.[0];
+            if (!texturePath) return;
+            
+            // Fix texture path
+            if (texturePath.includes(':/')) {
+                const parts = texturePath.split('/');
+                texturePath = parts.slice(-2).join('/');
+            }
+            
+            const texture = await PIXI.Texture.from(modelDir + texturePath);
+            
+            // Create advanced model structure
+            const modelParts = createModelStructure(texture);
+            
+            // Add all parts to container
+            for (const part of Object.values(modelParts)) {
+                modelContainer.addChild(part);
+            }
+            
+            // Position container
+            modelContainer.x = app.screen.width / 2;
+            modelContainer.y = app.screen.height / 2 + 100;
+            modelContainer.scale.set(0.7);
+            
+            // Add to stage
+            app.stage.addChild(modelContainer);
+            
+            // Start animation loop
+            startAnimationLoop(modelParts);
+            
+            document.getElementById('status').textContent = 'Model loaded with custom loader';
+        }
+        
+        // Create model structure with proper parts
+        function createModelStructure(texture) {
+            const parts = {};
+            
+            // Define UV regions for different parts
+            const regions = [
+                { name: 'background', x: 0, y: 0.5, w: 1, h: 0.5, z: 0 },
+                { name: 'body', x: 0.2, y: 0.4, w: 0.6, h: 0.6, z: 1 },
+                { name: 'hair_back', x: 0, y: 0, w: 0.5, h: 0.4, z: 0.5 },
+                { name: 'face', x: 0.3, y: 0.15, w: 0.4, h: 0.35, z: 2 },
+                { name: 'eyes', x: 0.35, y: 0.2, w: 0.3, h: 0.15, z: 3 },
+                { name: 'mouth', x: 0.42, y: 0.32, w: 0.16, h: 0.08, z: 3 },
+                { name: 'hair_front', x: 0.5, y: 0, w: 0.5, h: 0.4, z: 4 }
+            ];
+            
+            // Create sprites for each region
+            regions.forEach(region => {
+                const frame = new PIXI.Rectangle(
+                    texture.width * region.x,
+                    texture.height * region.y,
+                    texture.width * region.w,
+                    texture.height * region.h
+                );
+                
+                const regionTexture = new PIXI.Texture(texture.baseTexture, frame);
+                const sprite = new PIXI.Sprite(regionTexture);
+                
+                sprite.anchor.set(0.5);
+                sprite.position.set(
+                    (region.x + region.w/2 - 0.5) * 400,
+                    (region.y + region.h/2 - 0.5) * 600
+                );
+                sprite.zIndex = region.z;
+                
+                parts[region.name] = sprite;
+            });
+            
+            return parts;
+        }
+        
+        // Animation loop
+        function startAnimationLoop(parts) {
+            if (isAnimating) return;
+            isAnimating = true;
+            
+            let time = 0;
+            app.ticker.add(() => {
+                if (!modelContainer) return;
+                time += 0.016;
+                
+                // Breathing
+                if (parts.body) {
+                    parts.body.scale.y = 1 + Math.sin(time * 0.3) * 0.02;
+                }
+                
+                // Blinking
+                if (parts.eyes) {
+                    const blink = Math.sin(time * 0.5) + Math.sin(time * 0.3);
+                    parts.eyes.scale.y = blink > 1.8 ? 0.1 : 1;
+                }
+                
+                // Hair physics
+                if (parts.hair_front) {
+                    parts.hair_front.rotation = Math.sin(time * 2) * 0.02;
+                }
+                if (parts.hair_back) {
+                    parts.hair_back.rotation = Math.sin(time * 1.5) * 0.015;
+                }
+                
+                // Idle mouth movement
+                if (parts.mouth) {
+                    parts.mouth.scale.y = 1 + Math.sin(time * 3) * 0.05;
+                }
+                
+                // Overall sway
+                modelContainer.rotation = Math.sin(time * 0.2) * 0.01;
+            });
+        }
+        
+        // Control functions
+        window.playAnimation = function() {
+            if (!modelContainer) return;
+            
+            let animTime = 0;
+            const interval = setInterval(() => {
+                animTime += 0.1;
+                modelContainer.y = (app.screen.height / 2 + 100) + Math.sin(animTime * 5) * 30;
+                modelContainer.rotation = Math.sin(animTime * 3) * 0.1;
+                
+                if (animTime > Math.PI * 2) {
+                    clearInterval(interval);
+                    modelContainer.rotation = 0;
+                }
+            }, 16);
+        };
+        
+        window.changeExpression = function() {
+            if (!modelContainer) return;
+            
+            // Random tint for expression
+            const expressions = [0xFFCCCC, 0xCCFFCC, 0xCCCCFF, 0xFFFFCC];
+            const tint = expressions[Math.floor(Math.random() * expressions.length)];
+            
+            modelContainer.children.forEach(child => {
+                child.tint = tint;
+            });
+            
+            setTimeout(() => {
+                modelContainer.children.forEach(child => {
+                    child.tint = 0xFFFFFF;
+                });
+            }, 1000);
+        };
+        
+        window.speak = function(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                const voices = speechSynthesis.getVoices();
+                const indonesianVoice = voices.find(v => v.lang.startsWith('id'));
+                if (indonesianVoice) utterance.voice = indonesianVoice;
+                
+                utterance.onstart = () => {
+                    document.getElementById('status').textContent = 'Speaking...';
+                };
+                
+                utterance.onend = () => {
+                    document.getElementById('status').textContent = 'Ready';
+                };
+                
+                speechSynthesis.speak(utterance);
+            }
+        };
+        
+        window.resetModel = function() {
+            if (modelContainer) {
+                modelContainer.position.set(app.screen.width / 2, app.screen.height / 2 + 100);
+                modelContainer.scale.set(0.7);
+                modelContainer.rotation = 0;
+                modelContainer.children.forEach(child => {
+                    child.tint = 0xFFFFFF;
+                    child.scale.set(1);
+                    child.rotation = 0;
+                });
+            }
+        };
+        
+        // Handle messages
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Handle resize
+        window.addEventListener('resize', () => {
+            if (app) {
+                app.renderer.resize(window.innerWidth, window.innerHeight);
+                if (modelContainer) {
+                    modelContainer.x = window.innerWidth / 2;
+                    modelContainer.y = window.innerHeight / 2 + 100;
+                }
+            }
+        });
+        
+        // Initialize
+        init();
+    </script>
+</body>
+</html>

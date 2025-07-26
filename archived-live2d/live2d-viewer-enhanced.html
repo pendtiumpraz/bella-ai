@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Enhanced Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+            max-width: 300px;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #ff5580;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            text-align: center;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #ff6b9d;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <!-- Pixi.js for rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.3/pixi.min.js"></script>
+</head>
+<body>
+    <div class="info">
+        <h3>Live2D Model</h3>
+        <p>Model: <span id="model-name">Waiting...</span></p>
+        <p>Status: <span id="status">Initializing...</span></p>
+        <p>Parts: <span id="parts-count">0</span></p>
+    </div>
+    
+    <div class="loading" id="loading">
+        <div>Loading Live2D Model...</div>
+        <div class="loader"></div>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="playMotion()">Play Motion</button>
+        <button onclick="changeExpression()">Change Expression</button>
+        <button onclick="speak('Halo! Aku adalah avatar Live2D yang cantik!')">Test Speak</button>
+        <button onclick="toggleDebug()">Toggle Debug</button>
+    </div>
+
+    <script>
+        // Initialize PIXI
+        const app = new PIXI.Application({
+            view: document.getElementById('canvas'),
+            width: window.innerWidth,
+            height: window.innerHeight,
+            backgroundAlpha: 0,
+            resolution: window.devicePixelRatio || 1,
+            autoDensity: true
+        });
+
+        let modelContainer = null;
+        let modelParts = {};
+        let modelData = null;
+        let mocData = null;
+        let debugMode = false;
+        
+        // Animation state
+        let time = 0;
+        let mouseX = 0, mouseY = 0;
+        let isLipSyncing = false;
+        let lipSyncValue = 0;
+        let currentExpression = 0;
+        
+        // Track mouse
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        // Parse MOC file using our service
+        async function parseMOCFile(mocPath) {
+            try {
+                const response = await fetch('http://localhost:8082/parse-moc', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        file_path: mocPath
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    return result.data;
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                console.error('Error parsing MOC file:', error);
+                return null;
+            }
+        }
+
+        // Load model function
+        async function loadLive2DModel(modelPath) {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('model-name').textContent = modelPath.split('/').pop();
+                document.getElementById('status').textContent = 'Loading model...';
+                
+                // Clear previous model
+                if (modelContainer) {
+                    app.stage.removeChild(modelContainer);
+                    modelContainer.destroy(true);
+                }
+                
+                // Load model JSON
+                const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
+                const response = await fetch(modelPath);
+                modelData = await response.json();
+                
+                // Parse MOC file if available
+                let mocPath = null;
+                if (modelData.FileReferences?.Moc) {
+                    mocPath = modelDir + modelData.FileReferences.Moc;
+                } else if (modelData.model) {
+                    mocPath = modelDir + modelData.model;
+                }
+                
+                if (mocPath) {
+                    document.getElementById('status').textContent = 'Parsing MOC data...';
+                    mocData = await parseMOCFile(mocPath);
+                }
+                
+                // Create container
+                modelContainer = new PIXI.Container();
+                modelContainer.x = app.screen.width / 2;
+                modelContainer.y = app.screen.height / 2 + 100;
+                
+                // Load textures
+                document.getElementById('status').textContent = 'Loading textures...';
+                const textures = await loadTextures(modelData, modelDir);
+                
+                // Create model parts
+                document.getElementById('status').textContent = 'Creating model...';
+                await createModelParts(textures);
+                
+                // Add to stage
+                app.stage.addChild(modelContainer);
+                
+                // Start animation
+                app.ticker.add(updateAnimation);
+                
+                document.getElementById('status').textContent = 'Model loaded successfully';
+                document.getElementById('loading').style.display = 'none';
+                
+            } catch (error) {
+                console.error('Error loading model:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+        
+        // Load textures
+        async function loadTextures(modelData, modelDir) {
+            const textures = [];
+            let textureList = [];
+            
+            if (modelData.FileReferences?.Textures) {
+                textureList = modelData.FileReferences.Textures;
+            } else if (modelData.textures) {
+                textureList = modelData.textures;
+            }
+            
+            for (let texturePath of textureList) {
+                // Fix absolute paths
+                if (texturePath.includes('D:/') || texturePath.includes('C:/')) {
+                    const parts = texturePath.split('/');
+                    texturePath = parts[parts.length - 2] + '/' + parts[parts.length - 1];
+                }
+                
+                const fullPath = modelDir + texturePath;
+                try {
+                    const texture = await PIXI.Assets.load(fullPath);
+                    textures.push(texture);
+                } catch (error) {
+                    console.error('Failed to load texture:', fullPath, error);
+                }
+            }
+            
+            return textures;
+        }
+        
+        // Create model parts with MOC data
+        async function createModelParts(textures) {
+            // Clear existing parts
+            modelParts = {};
+            
+            if (!textures.length) {
+                throw new Error('No textures loaded');
+            }
+            
+            const texture = textures[0];
+            
+            // Create a more sophisticated model structure
+            const layers = [
+                { name: 'background', zIndex: 0 },
+                { name: 'body_back', zIndex: 1 },
+                { name: 'hair_back', zIndex: 2 },
+                { name: 'body', zIndex: 5 },
+                { name: 'clothes', zIndex: 6 },
+                { name: 'face', zIndex: 10 },
+                { name: 'eyes', zIndex: 11 },
+                { name: 'mouth', zIndex: 12 },
+                { name: 'hair_side', zIndex: 15 },
+                { name: 'hair_front', zIndex: 20 },
+                { name: 'accessories', zIndex: 25 }
+            ];
+            
+            // Create mesh for each layer
+            for (const layer of layers) {
+                const mesh = createLayerMesh(texture, layer.name);
+                if (mesh) {
+                    modelParts[layer.name] = mesh;
+                    modelContainer.addChild(mesh);
+                }
+            }
+            
+            // Sort children by z-index
+            modelContainer.children.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+            
+            // Set scale based on MOC data or default
+            let scale = 1.0;
+            if (mocData?.canvas_info?.width) {
+                scale = 800 / mocData.canvas_info.width;
+            }
+            modelContainer.scale.set(scale);
+            
+            document.getElementById('parts-count').textContent = Object.keys(modelParts).length;
+        }
+        
+        // Create layer mesh with proper UV mapping
+        function createLayerMesh(texture, layerName) {
+            // Create a simple mesh for now
+            const mesh = new PIXI.Mesh(
+                PIXI.Mesh.BATCHABLE_SIZE,
+                texture,
+                new PIXI.MeshGeometry(
+                    new Float32Array([
+                        -100, -150,  // top-left
+                         100, -150,  // top-right
+                         100,  150,  // bottom-right
+                        -100,  150   // bottom-left
+                    ]),
+                    new Float32Array([
+                        0, 0,  // UV top-left
+                        1, 0,  // UV top-right
+                        1, 1,  // UV bottom-right
+                        0, 1   // UV bottom-left
+                    ]),
+                    new Uint16Array([0, 1, 2, 0, 2, 3])
+                )
+            );
+            
+            mesh.anchor.set(0.5);
+            
+            // Layer-specific adjustments
+            switch(layerName) {
+                case 'face':
+                    mesh.position.set(0, -50);
+                    mesh.scale.set(0.8);
+                    break;
+                case 'eyes':
+                    mesh.position.set(0, -80);
+                    mesh.scale.set(0.3, 0.2);
+                    break;
+                case 'mouth':
+                    mesh.position.set(0, -30);
+                    mesh.scale.set(0.2, 0.1);
+                    break;
+                case 'hair_back':
+                    mesh.position.set(0, -100);
+                    mesh.scale.set(1.2, 1.3);
+                    break;
+                case 'hair_front':
+                    mesh.position.set(0, -120);
+                    mesh.scale.set(1.1, 1.2);
+                    break;
+                case 'body':
+                    mesh.position.set(0, 50);
+                    mesh.scale.set(1.0, 1.2);
+                    break;
+            }
+            
+            return mesh;
+        }
+        
+        // Update animation
+        function updateAnimation(delta) {
+            if (!modelContainer) return;
+            
+            time += delta * 0.01;
+            
+            // Head tracking
+            if (modelParts.face) {
+                modelParts.face.rotation = mouseX * 0.1;
+                modelParts.face.skew.set(mouseY * 0.05, 0);
+            }
+            
+            // Hair physics
+            if (modelParts.hair_front) {
+                modelParts.hair_front.rotation = Math.sin(time * 2) * 0.02 + mouseX * 0.05;
+                modelParts.hair_front.position.x = Math.sin(time * 1.5) * 2;
+            }
+            
+            if (modelParts.hair_back) {
+                modelParts.hair_back.rotation = Math.sin(time * 2 + 0.5) * 0.015 + mouseX * 0.03;
+            }
+            
+            if (modelParts.hair_side) {
+                modelParts.hair_side.rotation = Math.sin(time * 2.5) * 0.02 + mouseX * 0.04;
+            }
+            
+            // Eye blinking
+            if (modelParts.eyes) {
+                const blinkCycle = Math.sin(time * 0.5) + Math.sin(time * 0.3);
+                const shouldBlink = blinkCycle > 1.8;
+                modelParts.eyes.scale.y = shouldBlink ? 0.05 : 0.2;
+            }
+            
+            // Mouth animation
+            if (modelParts.mouth) {
+                if (isLipSyncing) {
+                    modelParts.mouth.scale.y = 0.1 + lipSyncValue * 0.15;
+                    modelParts.mouth.scale.x = 0.2 + lipSyncValue * 0.05;
+                } else {
+                    // Idle mouth movement
+                    modelParts.mouth.scale.y = 0.1 + Math.sin(time * 3) * 0.02;
+                }
+            }
+            
+            // Breathing
+            const breathing = Math.sin(time * 0.3) * 0.02;
+            if (modelParts.body) {
+                modelParts.body.scale.y = 1.2 * (1 + breathing);
+            }
+            
+            // Overall sway
+            modelContainer.rotation = Math.sin(time * 0.2) * 0.01;
+            modelContainer.y = (app.screen.height / 2 + 100) + Math.sin(time * 0.25) * 5;
+        }
+        
+        // Play motion
+        window.playMotion = function() {
+            const originalRotation = modelContainer.rotation;
+            let motionTime = 0;
+            
+            const motionTicker = (delta) => {
+                motionTime += delta * 0.02;
+                
+                // Bounce motion
+                modelContainer.scale.y = 1.0 + Math.sin(motionTime * 5) * 0.1;
+                modelContainer.rotation = originalRotation + Math.sin(motionTime * 3) * 0.2;
+                
+                // Move hair more dramatically
+                if (modelParts.hair_front) {
+                    modelParts.hair_front.rotation = Math.sin(motionTime * 8) * 0.3;
+                }
+                
+                if (motionTime > Math.PI * 2) {
+                    app.ticker.remove(motionTicker);
+                    modelContainer.rotation = originalRotation;
+                    modelContainer.scale.y = 1.0;
+                }
+            };
+            
+            app.ticker.add(motionTicker);
+        };
+        
+        // Change expression
+        window.changeExpression = function() {
+            currentExpression = (currentExpression + 1) % 3;
+            
+            switch(currentExpression) {
+                case 0: // Normal
+                    if (modelParts.eyes) modelParts.eyes.tint = 0xFFFFFF;
+                    if (modelParts.mouth) modelParts.mouth.scale.set(0.2, 0.1);
+                    break;
+                case 1: // Happy
+                    if (modelParts.eyes) modelParts.eyes.tint = 0xFFB6C1;
+                    if (modelParts.mouth) modelParts.mouth.scale.set(0.25, 0.15);
+                    break;
+                case 2: // Surprised
+                    if (modelParts.eyes) {
+                        modelParts.eyes.scale.set(0.35, 0.25);
+                        modelParts.eyes.tint = 0xFFFFFF;
+                    }
+                    if (modelParts.mouth) modelParts.mouth.scale.set(0.15, 0.2);
+                    break;
+            }
+        };
+        
+        // Speak function
+        window.speak = function(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                utterance.volume = 0.8;
+                
+                // Get Indonesian voice if available
+                const voices = window.speechSynthesis.getVoices();
+                const indonesianVoice = voices.find(voice => voice.lang.startsWith('id'));
+                if (indonesianVoice) {
+                    utterance.voice = indonesianVoice;
+                }
+                
+                utterance.onstart = () => {
+                    isLipSyncing = true;
+                    const lipInterval = setInterval(() => {
+                        lipSyncValue = 0.3 + Math.random() * 0.7;
+                    }, 80);
+                    
+                    utterance.onend = () => {
+                        isLipSyncing = false;
+                        lipSyncValue = 0;
+                        clearInterval(lipInterval);
+                    };
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        };
+        
+        // Toggle debug mode
+        window.toggleDebug = function() {
+            debugMode = !debugMode;
+            
+            if (debugMode) {
+                // Show bounds for each part
+                for (const [name, part] of Object.entries(modelParts)) {
+                    const bounds = new PIXI.Graphics();
+                    bounds.lineStyle(2, 0xFF0000, 0.5);
+                    bounds.drawRect(
+                        -part.width/2, -part.height/2,
+                        part.width, part.height
+                    );
+                    part.addChild(bounds);
+                    part._debugBounds = bounds;
+                }
+            } else {
+                // Remove debug graphics
+                for (const part of Object.values(modelParts)) {
+                    if (part._debugBounds) {
+                        part.removeChild(part._debugBounds);
+                        part._debugBounds.destroy();
+                        delete part._debugBounds;
+                    }
+                }
+            }
+        };
+        
+        // Handle messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Resize handler
+        window.addEventListener('resize', () => {
+            app.renderer.resize(window.innerWidth, window.innerHeight);
+            if (modelContainer) {
+                modelContainer.x = window.innerWidth / 2;
+                modelContainer.y = window.innerHeight / 2 + 100;
+            }
+        });
+        
+        // Initial status
+        document.getElementById('status').textContent = 'Waiting for model selection...';
+        document.getElementById('loading').style.display = 'none';
+    </script>
+</body>
+</html>

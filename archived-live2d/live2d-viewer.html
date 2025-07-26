@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas {
+            display: block;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #ff5a8d;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading Live2D Model...</div>
+    
+    <div class="info">
+        <h3>Bella Live2D Avatar</h3>
+        <p>Model: <span id="model-name">-</span></p>
+        <p>Status: <span id="status">Loading...</span></p>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="playMotion('idle')">Idle</button>
+        <button onclick="playMotion('tap')">Tap Motion</button>
+        <button onclick="startLipSync()">Start Lip Sync</button>
+        <button onclick="speak('Halo! Aku Bella, senang bertemu denganmu!')">Test Speak</button>
+    </div>
+
+    <!-- Live2D Core Library -->
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <!-- Live2D Framework -->
+    <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+    
+    <script>
+        let live2dModel = null;
+        let currentModelPath = '';
+        let isLipSyncing = false;
+        let lipSyncValue = 0;
+        
+        // Initialize canvas
+        const canvas = document.getElementById('canvas');
+        const gl = canvas.getContext('webgl', {
+            alpha: true,
+            premultipliedAlpha: true
+        });
+        
+        if (!gl) {
+            alert('WebGL not supported!');
+        }
+        
+        // Resize canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Simple Live2D model loader
+        class SimpleLive2DModel {
+            constructor(modelPath) {
+                this.modelPath = modelPath;
+                this.modelJson = null;
+                this.textures = [];
+                this.x = canvas.width / 2;
+                this.y = canvas.height / 2;
+                this.scale = 2.0;
+                this.eyeBlink = 0;
+                this.mouthOpen = 0;
+            }
+            
+            async load() {
+                try {
+                    // Load model JSON
+                    const response = await fetch(this.modelPath);
+                    this.modelJson = await response.json();
+                    
+                    document.getElementById('model-name').textContent = this.modelPath.split('/').pop();
+                    document.getElementById('status').textContent = 'Model loaded';
+                    document.getElementById('loading').style.display = 'none';
+                    
+                    // Start animation loop
+                    this.animate();
+                    
+                } catch (error) {
+                    console.error('Failed to load Live2D model:', error);
+                    document.getElementById('status').textContent = 'Load failed';
+                    document.getElementById('loading').textContent = 'Failed to load model!';
+                }
+            }
+            
+            animate() {
+                // Clear canvas
+                gl.clearColor(0, 0, 0, 0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+                
+                // Simple animation
+                this.eyeBlink = Math.abs(Math.sin(Date.now() * 0.001)) < 0.1 ? 1 : 0;
+                
+                if (isLipSyncing) {
+                    this.mouthOpen = lipSyncValue;
+                } else {
+                    this.mouthOpen = Math.abs(Math.sin(Date.now() * 0.003)) * 0.3;
+                }
+                
+                // Draw a simple animated face for now
+                this.drawSimpleFace();
+                
+                requestAnimationFrame(() => this.animate());
+            }
+            
+            drawSimpleFace() {
+                // Convert to 2D context for simple drawing
+                const ctx = document.createElement('canvas').getContext('2d');
+                ctx.canvas.width = canvas.width;
+                ctx.canvas.height = canvas.height;
+                
+                // Draw face
+                ctx.fillStyle = '#FFE0EC';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 100, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw eyes
+                ctx.fillStyle = '#333';
+                const eyeHeight = this.eyeBlink > 0.5 ? 2 : 20;
+                ctx.fillRect(this.x - 30, this.y - 20, 20, eyeHeight);
+                ctx.fillRect(this.x + 10, this.y - 20, 20, eyeHeight);
+                
+                // Draw mouth
+                ctx.strokeStyle = '#FF6B9D';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y + 20, 30, 0, Math.PI * this.mouthOpen);
+                ctx.stroke();
+                
+                // Draw to WebGL canvas
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                // Note: In real implementation, we'd use WebGL properly
+            }
+        }
+        
+        // Load Live2D model
+        async function loadLive2DModel(modelPath) {
+            currentModelPath = modelPath;
+            
+            if (live2dModel) {
+                // Clean up previous model
+                live2dModel = null;
+            }
+            
+            live2dModel = new SimpleLive2DModel(modelPath);
+            await live2dModel.load();
+        }
+        
+        // Play motion
+        function playMotion(motionName) {
+            console.log('Playing motion:', motionName);
+            document.getElementById('status').textContent = 'Motion: ' + motionName;
+        }
+        
+        // Start lip sync
+        function startLipSync() {
+            isLipSyncing = !isLipSyncing;
+            document.getElementById('status').textContent = isLipSyncing ? 'Lip sync ON' : 'Lip sync OFF';
+        }
+        
+        // TTS with lip sync
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                utterance.onstart = () => {
+                    isLipSyncing = true;
+                    // Simulate lip sync
+                    const lipInterval = setInterval(() => {
+                        lipSyncValue = 0.3 + Math.random() * 0.7;
+                    }, 100);
+                    
+                    utterance.onend = () => {
+                        isLipSyncing = false;
+                        lipSyncValue = 0;
+                        clearInterval(lipInterval);
+                    };
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+        
+        // Listen for messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                console.log('Loading Live2D model from parent:', event.data.path);
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Load default model
+        loadLive2DModel('vtuber/1175870452/Kurama_Koharu/Kurama_Koharu.model.json');
+    </script>
+</body>
+</html>

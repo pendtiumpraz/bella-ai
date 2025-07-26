@@ -2,7 +2,6 @@
 import { BellaAI } from './core.js';
 import { ChatInterface } from './chatInterface.js';
 import { VideoManager } from './videoManager.js';
-import { Live2DAvatar } from './live2dIntegration.js';
 import { VideoAvatar } from './videoAvatar.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
@@ -24,11 +23,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize video emotion manager
     videoManager = new VideoManager();
     
-    // Initialize Live2D Avatar (but hidden initially)
-    bellaAvatar = new Live2DAvatar('bella-avatar');
+    // Initialize avatar placeholder
+    bellaAvatar = null; // Live2D support removed
     
     // Avatar mode toggle
     const toggleBtn = document.getElementById('toggle-avatar-mode');
+    const selectAvatarBtn = document.getElementById('select-avatar-btn');
     const avatarContainer = document.getElementById('avatar-container');
     const videoContainer = document.getElementById('video-container');
     
@@ -52,6 +52,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             // Stop video to save resources
             video1.pause();
             video2.pause();
+            
+            // Keep current avatar name if already selected
+            // Otherwise it will be default Bella
         } else {
             videoContainer.style.display = 'block';
             avatarContainer.style.display = 'none';
@@ -59,7 +62,97 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             // Resume video
             video1.play();
+            
+            // Update chat interface to show Bella for video mode
+            if (chatInterface) {
+                chatInterface.updateAssistant('Bella AI', '💝');
+            }
+            
+            // Update AI cloud service to use Bella name
+            if (bellaAI && bellaAI.cloudAPI) {
+                bellaAI.cloudAPI.updateAssistantName('Bella');
+            }
         }
+    });
+    
+    // Helper function to clean up all avatar displays
+    function hideAllAvatars() {
+        // Hide canvas avatar
+        const bellaCanvas = document.getElementById('bella-avatar');
+        if (bellaCanvas) bellaCanvas.style.display = 'none';
+        
+        // Hide VRM iframe
+        const vrmFrame = document.getElementById('vrm-avatar');
+        if (vrmFrame) vrmFrame.style.display = 'none';
+        
+        // Remove Live2D iframe
+        const live2dFrame = document.getElementById('live2d-avatar');
+        if (live2dFrame) live2dFrame.remove();
+    }
+    
+    // Avatar selection button
+    selectAvatarBtn.addEventListener('click', () => {
+        // Open avatar selector in new window
+        const avatarWindow = window.open('avatarSelector.html', 'AvatarSelector', 'width=1200,height=800');
+        
+        // Listen for avatar selection
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'useAlternativeViewer') {
+                // Switch to alternative viewer if SDK fails
+                const live2dFrame = document.getElementById('live2d-avatar');
+                if (live2dFrame) {
+                    live2dFrame.src = 'live2d-accurate-viewer.html';
+                    console.log('Switched to alternative Live2D viewer');
+                }
+            } else if (event.data.type === 'avatarSelected') {
+                const selectedAvatar = event.data.avatar;
+                console.log('Avatar selected:', selectedAvatar);
+                
+                // Update chat interface with avatar name
+                if (chatInterface) {
+                    chatInterface.updateAssistant(selectedAvatar.name, '🎭');
+                }
+                
+                // Update AI cloud service with avatar name
+                if (bellaAI && bellaAI.cloudAPI) {
+                    bellaAI.cloudAPI.updateAssistantName(selectedAvatar.name);
+                }
+                
+                // Hide all avatars first
+                hideAllAvatars();
+                
+                // Handle different avatar types
+                if (selectedAvatar.type === 'VRM') {
+                    console.log('Switching to VRM model:', selectedAvatar.name);
+                    
+                    // Show VRM iframe
+                    const vrmFrame = document.getElementById('vrm-avatar');
+                    vrmFrame.style.display = 'block';
+                    
+                    // Force style update
+                    vrmFrame.style.width = '100%';
+                    vrmFrame.style.height = '100%';
+                    vrmFrame.style.position = 'absolute';
+                    vrmFrame.style.top = '0';
+                    vrmFrame.style.left = '0';
+                    
+                    console.log('VRM frame visibility:', vrmFrame.style.display);
+                    console.log('Canvas visibility:', bellaCanvas.style.display);
+                    
+                    // Send message to VRM iframe to load model
+                    setTimeout(() => {
+                        vrmFrame.contentWindow.postMessage({
+                            type: 'loadModel',
+                            path: selectedAvatar.path
+                        }, '*');
+                        console.log('Sent loadModel message for:', selectedAvatar.path);
+                    }, 500);
+                    
+                } else {
+                    console.log('Unknown avatar type:', selectedAvatar.type);
+                }
+            }
+        });
     });
     
     // 首先初始化聊天界面（不依赖AI）
@@ -113,11 +206,28 @@ document.addEventListener('DOMContentLoaded', async function() {
                         }
                         
                         // Sync avatar mouth with speech
-                        if (isAvatarMode && bellaAvatar) {
-                            bellaAvatar.startSpeaking();
-                            utterance.onend = () => {
-                                bellaAvatar.stopSpeaking();
-                            };
+                        if (isAvatarMode) {
+                            const vrmFrame = document.getElementById('vrm-avatar');
+                            const live2dFrame = document.getElementById('live2d-avatar');
+                            
+                            if (vrmFrame && vrmFrame.style.display !== 'none' && vrmFrame.contentWindow) {
+                                // Send message to VRM iframe to start speaking
+                                vrmFrame.contentWindow.postMessage({
+                                    type: 'speak',
+                                    text: response
+                                }, '*');
+                            } else if (live2dFrame && live2dFrame.style.display !== 'none' && live2dFrame.contentWindow) {
+                                // Send message to Live2D iframe to start speaking
+                                live2dFrame.contentWindow.postMessage({
+                                    type: 'speak',
+                                    text: response
+                                }, '*');
+                            } else if (bellaAvatar) {
+                                bellaAvatar.startSpeaking();
+                                utterance.onend = () => {
+                                    bellaAvatar.stopSpeaking();
+                                };
+                            }
                         }
                         
                         window.speechSynthesis.speak(utterance);
@@ -193,11 +303,28 @@ document.addEventListener('DOMContentLoaded', async function() {
                         }
                         
                         // Sync avatar mouth with speech
-                        if (isAvatarMode && bellaAvatar) {
-                            bellaAvatar.startSpeaking();
-                            utterance.onend = () => {
-                                bellaAvatar.stopSpeaking();
-                            };
+                        if (isAvatarMode) {
+                            const vrmFrame = document.getElementById('vrm-avatar');
+                            const live2dFrame = document.getElementById('live2d-avatar');
+                            
+                            if (vrmFrame && vrmFrame.style.display !== 'none' && vrmFrame.contentWindow) {
+                                // Send message to VRM iframe to start speaking
+                                vrmFrame.contentWindow.postMessage({
+                                    type: 'speak',
+                                    text: response
+                                }, '*');
+                            } else if (live2dFrame && live2dFrame.style.display !== 'none' && live2dFrame.contentWindow) {
+                                // Send message to Live2D iframe to start speaking
+                                live2dFrame.contentWindow.postMessage({
+                                    type: 'speak',
+                                    text: response
+                                }, '*');
+                            } else if (bellaAvatar) {
+                                bellaAvatar.startSpeaking();
+                                utterance.onend = () => {
+                                    bellaAvatar.stopSpeaking();
+                                };
+                            }
                         }
                         
                         window.speechSynthesis.speak(utterance);

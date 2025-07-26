@@ -1,0 +1,13 @@
+[package]
+name = "live2d-parser-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+live2d-parser = "0.1.3"
+actix-web = "4"
+actix-cors = "0.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+env_logger = "0.10"

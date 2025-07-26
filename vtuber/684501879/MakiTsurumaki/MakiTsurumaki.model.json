@@ -1,8 +1,0 @@
-{
-	"type": "Live2D Model Setting",
-	"name": "MakiTsurumaki",
-	"model": "MakiTsurumaki.moc",
-	"textures": [
-		"MakiTsurumaki.2048/texture_00.png"
-	]
-}

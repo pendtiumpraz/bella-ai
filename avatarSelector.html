@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Avatar Selector</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .filter-buttons {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .filter-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 10px 30px;
+            margin: 0 10px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        .filter-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+        
+        .filter-btn.active {
+            background: #ff6b9d;
+            border-color: #ff6b9d;
+        }
+        
+        .avatar-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .avatar-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .avatar-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .avatar-preview {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .avatar-preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .no-preview {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+        }
+        
+        .avatar-info {
+            padding: 15px;
+        }
+        
+        .avatar-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .avatar-type {
+            font-size: 12px;
+            opacity: 0.8;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 3px 10px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+        
+        .selected-avatar {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 15px;
+            display: none;
+        }
+        
+        .selected-avatar.show {
+            display: block;
+        }
+        
+        .use-avatar-btn {
+            background: #ff6b9d;
+            border: none;
+            color: white;
+            padding: 10px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        
+        .use-avatar-btn:hover {
+            background: #ff5a8d;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎭 Pilih Avatar VRM</h1>
+    
+    <div class="filter-buttons" style="text-align: center; margin-bottom: 20px;">
+        <p style="font-size: 18px;">Avatar 3D VRM yang tersedia:</p>
+    </div>
+    
+    <div id="avatar-grid" class="avatar-grid">
+        <!-- Avatar cards will be generated here -->
+    </div>
+    
+    <div id="selected-avatar" class="selected-avatar">
+        <h3>Avatar Terpilih:</h3>
+        <p id="selected-name">-</p>
+        <p id="selected-type">-</p>
+        <button class="use-avatar-btn" onclick="useSelectedAvatar()">Gunakan Avatar Ini</button>
+    </div>
+    
+    <script type="module">
+        import { getAllModels, getModelsByType } from './vtuberModels.js';
+        
+        let selectedAvatar = null;
+        let currentFilter = 'all';
+        
+        function renderAvatars(models) {
+            const grid = document.getElementById('avatar-grid');
+            grid.innerHTML = '';
+            
+            models.forEach(model => {
+                const card = document.createElement('div');
+                card.className = 'avatar-card';
+                card.onclick = () => selectAvatar(model);
+                
+                card.innerHTML = `
+                    <div class="avatar-preview">
+                        ${model.preview ? 
+                            `<img src="${model.preview}" alt="${model.name}" onerror="this.parentElement.innerHTML='<div class=\\'no-preview\\'>No Preview</div>'">` : 
+                            '<div class="no-preview">No Preview</div>'
+                        }
+                    </div>
+                    <div class="avatar-info">
+                        <div class="avatar-name">${model.name}</div>
+                        <span class="avatar-type">${model.type}</span>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+        
+        function filterAvatars(type) {
+            currentFilter = type;
+            
+            // Update button states
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Filter and render
+            let models;
+            if (type === 'all') {
+                models = getAllModels();
+            } else {
+                models = getModelsByType(type);
+            }
+            
+            renderAvatars(models);
+        }
+        
+        function selectAvatar(model) {
+            selectedAvatar = model;
+            document.getElementById('selected-name').textContent = model.name;
+            document.getElementById('selected-type').textContent = model.type;
+            document.getElementById('selected-avatar').classList.add('show');
+        }
+        
+        function useSelectedAvatar() {
+            if (selectedAvatar) {
+                // Store selected avatar in localStorage
+                localStorage.setItem('selectedBellaAvatar', JSON.stringify(selectedAvatar));
+                
+                // Redirect back to main app or send message to parent
+                if (window.opener) {
+                    window.opener.postMessage({
+                        type: 'avatarSelected',
+                        avatar: selectedAvatar
+                    }, '*');
+                    window.close();
+                } else {
+                    // If not opened as popup, redirect
+                    window.location.href = 'index.html';
+                }
+            }
+        }
+        
+        // Make functions global
+        window.filterAvatars = filterAvatars;
+        window.selectAvatar = selectAvatar;
+        window.useSelectedAvatar = useSelectedAvatar;
+        
+        // Initial render
+        renderAvatars(getAllModels());
+    </script>
+</body>
+</html>

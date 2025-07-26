@@ -1,8 +1,0 @@
-# Live2D Animator Motion Data
-$fps=30.0
-
-$fadein=500
-
-$fadeout=500
-
-PARAM__R_AM=-0,0.055,0.198,0.395,0.605,0.802,0.945,1,1,1,1,1,1,1,1,1

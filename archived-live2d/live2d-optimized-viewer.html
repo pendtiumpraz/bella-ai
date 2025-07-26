@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Optimized Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, sans-serif;
+        }
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+            backdrop-filter: blur(10px);
+        }
+        button {
+            margin: 0 5px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #ff5580;
+            transform: translateY(-2px);
+        }
+        .model-selector {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        select {
+            padding: 8px 15px;
+            border-radius: 10px;
+            border: none;
+            background: #444;
+            color: white;
+            cursor: pointer;
+        }
+    </style>
+    <!-- Three.js for 3D rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <div class="info">
+        <h3>Live2D Model Viewer</h3>
+        <p>Model: <span id="model-name">None</span></p>
+        <p>Status: <span id="status">Ready</span></p>
+        <p style="font-size: 12px; opacity: 0.7;">No SDK required version</p>
+    </div>
+    
+    <div class="model-selector">
+        <label style="color: white; margin-right: 10px;">Quick Select:</label>
+        <select id="model-select" onchange="loadSelectedModel()">
+            <option value="">Choose a model...</option>
+            <option value="vtuber/1263521352/monika/monika.model.json">Monika</option>
+            <option value="vtuber/1443307414/nono/nono.model3.json">Nono</option>
+            <option value="vtuber/1175870452/Kurama_Koharu/Kurama_Koharu.model.json">Kurama Koharu</option>
+            <option value="vtuber/1251173723/Nagisa_Shiota/nagisa_shiota.model.json">Nagisa Shiota</option>
+        </select>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="playAnimation()">Play Animation</button>
+        <button onclick="changeExpression()">Change Expression</button>
+        <button onclick="speak('Halo! Aku ' + currentModelName)">Test Speak</button>
+        <button onclick="resetPose()">Reset Pose</button>
+    </div>
+
+    <script>
+        // Three.js setup
+        let scene, camera, renderer;
+        let modelGroup = null;
+        let modelParts = {};
+        let currentModelName = "Model";
+        let animationTime = 0;
+        let mousePos = { x: 0, y: 0 };
+        let isLipSyncing = false;
+        let lipSyncValue = 0;
+        
+        // Model configurations for better positioning
+        const MODEL_CONFIGS = {
+            'monika': {
+                scale: 0.8,
+                position: { x: 0, y: -2, z: 0 },
+                parts: {
+                    body: { offset: [0, -1, 0], scale: [1, 1.2, 1] },
+                    head: { offset: [0, 2, 0.1], scale: [0.9, 0.9, 1] },
+                    eyes: { offset: [0, 2.3, 0.2], scale: [0.3, 0.2, 1] },
+                    mouth: { offset: [0, 1.8, 0.2], scale: [0.2, 0.1, 1] },
+                    hair_back: { offset: [0, 2.5, -0.1], scale: [1.2, 1.3, 1] },
+                    hair_front: { offset: [0, 2.5, 0.3], scale: [1.1, 1.2, 1] }
+                }
+            },
+            'default': {
+                scale: 1,
+                position: { x: 0, y: -1.5, z: 0 },
+                parts: {
+                    body: { offset: [0, 0, 0], scale: [1, 1, 1] },
+                    head: { offset: [0, 1.5, 0], scale: [1, 1, 1] },
+                    eyes: { offset: [0, 1.8, 0.1], scale: [0.4, 0.3, 1] },
+                    mouth: { offset: [0, 1.3, 0.1], scale: [0.3, 0.15, 1] },
+                    hair_back: { offset: [0, 2, -0.1], scale: [1.3, 1.4, 1] },
+                    hair_front: { offset: [0, 2, 0.2], scale: [1.2, 1.3, 1] }
+                }
+            }
+        };
+        
+        // Initialize Three.js
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(
+                45,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(0, 0, 10);
+            camera.lookAt(0, 0, 0);
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({
+                canvas: document.getElementById('canvas'),
+                antialias: true,
+                alpha: true
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(0, 1, 1);
+            scene.add(directionalLight);
+            
+            // Mouse tracking
+            document.addEventListener('mousemove', (e) => {
+                mousePos.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mousePos.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            });
+            
+            // Start render loop
+            animate();
+        }
+        
+        // Load Live2D model
+        async function loadLive2DModel(modelPath) {
+            try {
+                updateStatus('Loading model...');
+                
+                // Clean up previous model
+                if (modelGroup) {
+                    scene.remove(modelGroup);
+                    modelGroup.traverse((child) => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) {
+                            if (child.material.map) child.material.map.dispose();
+                            child.material.dispose();
+                        }
+                    });
+                }
+                
+                modelGroup = new THREE.Group();
+                modelParts = {};
+                
+                // Clean path
+                if (modelPath.startsWith('/mnt/')) {
+                    modelPath = modelPath.replace('/mnt/d/AI/Bella/', '');
+                }
+                
+                // Get model name
+                const pathParts = modelPath.split('/');
+                currentModelName = pathParts[pathParts.length - 1]
+                    .replace('.model.json', '')
+                    .replace('.model3.json', '');
+                document.getElementById('model-name').textContent = currentModelName;
+                
+                // Load model JSON
+                const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
+                const response = await fetch(modelPath);
+                const modelData = await response.json();
+                
+                // Load texture
+                let texturePath = modelData.textures?.[0] || modelData.FileReferences?.Textures?.[0];
+                if (texturePath) {
+                    // Fix path
+                    if (texturePath.includes(':/')) {
+                        const parts = texturePath.split('/');
+                        texturePath = parts.slice(-2).join('/');
+                    }
+                    
+                    const textureLoader = new THREE.TextureLoader();
+                    const texture = await new Promise((resolve, reject) => {
+                        textureLoader.load(
+                            modelDir + texturePath,
+                            resolve,
+                            undefined,
+                            reject
+                        );
+                    });
+                    
+                    // Create model parts
+                    createModelParts(texture, currentModelName);
+                    
+                    // Add to scene
+                    scene.add(modelGroup);
+                    
+                    updateStatus('Model loaded successfully');
+                }
+                
+            } catch (error) {
+                console.error('Error loading model:', error);
+                updateStatus('Error: ' + error.message);
+            }
+        }
+        
+        // Create model parts with better structure
+        function createModelParts(texture, modelName) {
+            const config = MODEL_CONFIGS[modelName.toLowerCase()] || MODEL_CONFIGS.default;
+            
+            // Define parts with UV mapping
+            const partDefinitions = [
+                { name: 'hair_back', uv: [0, 0, 0.5, 0.4], z: -0.2 },
+                { name: 'body', uv: [0.2, 0.4, 0.8, 1], z: 0 },
+                { name: 'head', uv: [0.25, 0.1, 0.75, 0.5], z: 0.1 },
+                { name: 'eyes', uv: [0.3, 0.2, 0.7, 0.35], z: 0.2 },
+                { name: 'mouth', uv: [0.4, 0.35, 0.6, 0.45], z: 0.2 },
+                { name: 'hair_front', uv: [0.5, 0, 1, 0.4], z: 0.3 }
+            ];
+            
+            // Create mesh for each part
+            partDefinitions.forEach(part => {
+                const geometry = new THREE.PlaneGeometry(2, 2);
+                
+                // Adjust UV coordinates
+                const uvs = geometry.attributes.uv;
+                uvs.setXY(0, part.uv[0], 1 - part.uv[3]);
+                uvs.setXY(1, part.uv[2], 1 - part.uv[3]);
+                uvs.setXY(2, part.uv[0], 1 - part.uv[1]);
+                uvs.setXY(3, part.uv[2], 1 - part.uv[1]);
+                
+                const material = new THREE.MeshBasicMaterial({
+                    map: texture,
+                    transparent: true,
+                    alphaTest: 0.01,
+                    side: THREE.DoubleSide
+                });
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                // Apply configuration
+                const partConfig = config.parts[part.name] || { offset: [0, 0, 0], scale: [1, 1, 1] };
+                mesh.position.set(...partConfig.offset);
+                mesh.position.z += part.z;
+                mesh.scale.set(...partConfig.scale);
+                
+                // Store original values
+                mesh.userData = {
+                    originalPosition: mesh.position.clone(),
+                    originalRotation: mesh.rotation.clone(),
+                    originalScale: mesh.scale.clone(),
+                    partName: part.name
+                };
+                
+                modelParts[part.name] = mesh;
+                modelGroup.add(mesh);
+            });
+            
+            // Apply model configuration
+            modelGroup.scale.set(config.scale, config.scale, config.scale);
+            modelGroup.position.set(config.position.x, config.position.y, config.position.z);
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            animationTime += 0.016;
+            
+            if (modelGroup) {
+                // Head tracking
+                if (modelParts.head) {
+                    modelParts.head.rotation.y = mousePos.x * 0.3;
+                    modelParts.head.rotation.x = -mousePos.y * 0.2;
+                }
+                
+                // Eye tracking
+                if (modelParts.eyes) {
+                    modelParts.eyes.position.x = modelParts.eyes.userData.originalPosition.x + mousePos.x * 0.1;
+                    modelParts.eyes.position.y = modelParts.eyes.userData.originalPosition.y + mousePos.y * 0.05;
+                }
+                
+                // Hair physics
+                if (modelParts.hair_front) {
+                    modelParts.hair_front.rotation.z = Math.sin(animationTime * 2) * 0.05 + mousePos.x * 0.1;
+                }
+                if (modelParts.hair_back) {
+                    modelParts.hair_back.rotation.z = Math.sin(animationTime * 1.5) * 0.03 + mousePos.x * 0.05;
+                }
+                
+                // Blinking
+                if (modelParts.eyes) {
+                    const blinkValue = Math.sin(animationTime * 0.5) + Math.sin(animationTime * 0.3);
+                    if (blinkValue > 1.8) {
+                        modelParts.eyes.scale.y = 0.1;
+                    } else {
+                        modelParts.eyes.scale.y = modelParts.eyes.userData.originalScale.y;
+                    }
+                }
+                
+                // Mouth animation
+                if (modelParts.mouth) {
+                    if (isLipSyncing) {
+                        modelParts.mouth.scale.y = modelParts.mouth.userData.originalScale.y * (1 + lipSyncValue * 0.5);
+                        modelParts.mouth.scale.x = modelParts.mouth.userData.originalScale.x * (1 - lipSyncValue * 0.2);
+                    } else {
+                        modelParts.mouth.scale.y = modelParts.mouth.userData.originalScale.y * (1 + Math.sin(animationTime * 3) * 0.05);
+                    }
+                }
+                
+                // Breathing
+                if (modelParts.body) {
+                    modelParts.body.scale.y = modelParts.body.userData.originalScale.y * (1 + Math.sin(animationTime * 0.3) * 0.02);
+                }
+                
+                // Overall sway
+                modelGroup.rotation.z = Math.sin(animationTime * 0.2) * 0.02;
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Control functions
+        window.playAnimation = function() {
+            if (!modelGroup) return;
+            
+            let motionTime = 0;
+            const interval = setInterval(() => {
+                motionTime += 0.1;
+                
+                modelGroup.position.y = MODEL_CONFIGS[currentModelName.toLowerCase()]?.position.y || -1.5;
+                modelGroup.position.y += Math.sin(motionTime * 5) * 0.2;
+                modelGroup.rotation.y = Math.sin(motionTime * 3) * 0.2;
+                
+                if (modelParts.hair_front) {
+                    modelParts.hair_front.rotation.z = Math.sin(motionTime * 8) * 0.3;
+                }
+                
+                if (motionTime > Math.PI * 2) {
+                    clearInterval(interval);
+                    modelGroup.rotation.y = 0;
+                }
+            }, 16);
+        };
+        
+        window.changeExpression = function() {
+            if (!modelParts.mouth || !modelParts.eyes) return;
+            
+            const expressions = [
+                { eyes: 1, mouth: 1 },      // Normal
+                { eyes: 0.7, mouth: 1.5 },  // Happy
+                { eyes: 1.3, mouth: 0.5 },  // Surprised
+                { eyes: 0.5, mouth: 0.8 }   // Sleepy
+            ];
+            
+            const expr = expressions[Math.floor(Math.random() * expressions.length)];
+            modelParts.eyes.scale.y = modelParts.eyes.userData.originalScale.y * expr.eyes;
+            modelParts.mouth.scale.x = modelParts.mouth.userData.originalScale.x * expr.mouth;
+        };
+        
+        window.speak = function(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                utterance.onstart = () => {
+                    isLipSyncing = true;
+                    const lipInterval = setInterval(() => {
+                        lipSyncValue = Math.random();
+                    }, 100);
+                    
+                    utterance.onend = () => {
+                        isLipSyncing = false;
+                        lipSyncValue = 0;
+                        clearInterval(lipInterval);
+                    };
+                };
+                
+                speechSynthesis.speak(utterance);
+            }
+        };
+        
+        window.resetPose = function() {
+            if (!modelGroup) return;
+            
+            Object.values(modelParts).forEach(part => {
+                if (part.userData) {
+                    part.position.copy(part.userData.originalPosition);
+                    part.rotation.copy(part.userData.originalRotation);
+                    part.scale.copy(part.userData.originalScale);
+                }
+            });
+            
+            modelGroup.rotation.set(0, 0, 0);
+        };
+        
+        window.loadSelectedModel = function() {
+            const select = document.getElementById('model-select');
+            if (select.value) {
+                loadLive2DModel(select.value);
+            }
+        };
+        
+        function updateStatus(text) {
+            document.getElementById('status').textContent = text;
+        }
+        
+        // Handle messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                loadLive2DModel(event.data.path);
+                // Update select dropdown
+                const select = document.getElementById('model-select');
+                select.value = event.data.path;
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Handle resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Initialize
+        init();
+    </script>
+</body>
+</html>

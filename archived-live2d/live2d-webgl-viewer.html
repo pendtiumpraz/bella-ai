@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D WebGL Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #live2d-canvas {
+            cursor: move;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+            z-index: 100;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+            font-family: Arial, sans-serif;
+            z-index: 100;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            text-align: center;
+            z-index: 200;
+        }
+        .alternative-info {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 107, 157, 0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 500px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <h2>Live2D Model Loading...</h2>
+        <p>Trying WebGL implementation...</p>
+    </div>
+    
+    <div class="info">
+        <h3>Live2D WebGL Viewer</h3>
+        <p>Model: <span id="model-name">-</span></p>
+        <p>Status: <span id="status">Initializing WebGL...</span></p>
+    </div>
+    
+    <canvas id="live2d-canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="testAnimation()">Test Animation</button>
+        <button onclick="showAlternatives()">Show Alternatives</button>
+    </div>
+    
+    <div class="alternative-info" id="alternatives" style="display: none;">
+        <h3>Alternatif Solusi:</h3>
+        <p><strong>1. Gunakan VRM Models</strong> - Format 3D standard yang lebih mudah</p>
+        <p><strong>2. Convert Live2D ke Cubism Web Format</strong> - Butuh Cubism Editor</p>
+        <p><strong>3. Gunakan Model yang sudah Web-Ready</strong> - Download dari situs Live2D</p>
+        <button onclick="document.getElementById('alternatives').style.display='none'">Close</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('live2d-canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        
+        if (!gl) {
+            document.getElementById('loading').innerHTML = '<h2>WebGL not supported!</h2><p>Browser anda tidak support WebGL</p>';
+        }
+        
+        // Resize canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            if (gl) {
+                gl.viewport(0, 0, canvas.width, canvas.height);
+            }
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // The reality about Live2D web implementation
+        function showLive2DReality() {
+            const message = `
+                <h2>Realitas Live2D di Web</h2>
+                <div style="text-align: left; padding: 20px;">
+                    <h3>Kenapa Live2D Model Berantakan?</h3>
+                    <ul>
+                        <li><strong>File .moc adalah proprietary binary format</strong> - Butuh SDK resmi untuk parse</li>
+                        <li><strong>Texture adalah sprite sheet</strong> - Berisi semua parts (mata, mulut, rambut, dll) dalam 1 gambar</li>
+                        <li><strong>Tanpa rigging data</strong> - Kita tidak tahu cara menyusun parts dengan benar</li>
+                        <li><strong>UV mapping tersimpan di .moc</strong> - Coordinates setiap parts ada di binary file</li>
+                    </ul>
+                    
+                    <h3>Solusi yang Tersedia:</h3>
+                    <ol>
+                        <li><strong>Live2D Cubism SDK for Web (Berbayar)</strong>
+                            <ul>
+                                <li>SDK resmi dari Live2D Inc.</li>
+                                <li>Bisa parse .moc files dengan benar</li>
+                                <li>Butuh lisensi untuk penggunaan komersial</li>
+                            </ul>
+                        </li>
+                        
+                        <li><strong>Gunakan VRM Models Instead</strong>
+                            <ul>
+                                <li>Format 3D open standard</li>
+                                <li>Sudah ada 4 model VRM di folder vtuber</li>
+                                <li>Lebih mudah diimplementasikan</li>
+                            </ul>
+                        </li>
+                        
+                        <li><strong>Convert ke Web Format</strong>
+                            <ul>
+                                <li>Gunakan Cubism Editor (gratis untuk personal)</li>
+                                <li>Export sebagai Cubism SDK for Web format</li>
+                                <li>Akan menghasilkan .model3.json yang web-ready</li>
+                            </ul>
+                        </li>
+                    </ol>
+                    
+                    <h3>Kenapa Tidak Bisa "Hanya Pakai Gambar Mentah"?</h3>
+                    <p>Texture Live2D itu seperti puzzle pieces yang terpisah. Tanpa instruksi cara menyusunnya (yang ada di .moc file), hasilnya akan selalu berantakan.</p>
+                </div>
+            `;
+            
+            document.getElementById('loading').innerHTML = message;
+            document.getElementById('loading').style.width = '80%';
+            document.getElementById('loading').style.maxWidth = '600px';
+            document.getElementById('loading').style.background = 'rgba(0,0,0,0.9)';
+            document.getElementById('loading').style.padding = '30px';
+            document.getElementById('loading').style.borderRadius = '20px';
+            document.getElementById('loading').style.textAlign = 'left';
+        }
+        
+        // Test animation placeholder
+        window.testAnimation = function() {
+            alert('Animasi membutuhkan model yang sudah ter-rig dengan benar.\n\nGunakan VRM models atau convert Live2D ke format web.');
+        };
+        
+        window.showAlternatives = function() {
+            document.getElementById('alternatives').style.display = 'block';
+        };
+        
+        // Message handler
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                document.getElementById('model-name').textContent = event.data.path.split('/').pop();
+                document.getElementById('status').textContent = 'Cannot load - need proper SDK';
+                
+                // Show the reality
+                setTimeout(() => {
+                    showLive2DReality();
+                }, 1000);
+            }
+        });
+        
+        // Initial message
+        document.getElementById('status').textContent = 'WebGL ready, but need Live2D SDK';
+        
+        setTimeout(() => {
+            showLive2DReality();
+        }, 2000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Assembled Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas {
+            display: block;
+            cursor: move;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading Live2D Model...<br><small>Parsing and assembling parts...</small></div>
+    
+    <div class="info">
+        <h3>Bella Live2D Avatar</h3>
+        <p>Model: <span id="model-name">-</span></p>
+        <p>Status: <span id="status">Initializing...</span></p>
+        <p>Parts: <span id="parts-count">0</span></p>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="testSpeak()">Test Speak</button>
+        <button onclick="testBlink()">Test Blink</button>
+        <button onclick="resetPose()">Reset Pose</button>
+    </div>
+
+    <script type="module">
+        import { SimpleMOCParser } from './live2d-moc-parser.js';
+        import { Live2DModelLoader } from './live2d-loader.js';
+        
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Model data
+        let modelData = null;
+        let mocData = null;
+        let texture = null;
+        let parameters = {};
+        let animationFrame = null;
+        
+        // Animation state
+        let mouseX = 0, mouseY = 0;
+        let blinkTimer = 0;
+        let breathingPhase = 0;
+        let mouthOpenValue = 0;
+        let isLipSyncing = false;
+        
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Mouse tracking
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+        
+        // Load Live2D Model with MOC parsing
+        async function loadLive2DModel(modelPath) {
+            try {
+                const modelName = modelPath.split('/').pop();
+                document.getElementById('model-name').textContent = modelName;
+                document.getElementById('status').textContent = 'Loading model data...';
+                
+                // Load model JSON
+                const modelLoader = new Live2DModelLoader();
+                modelData = await modelLoader.loadModel(modelPath);
+                
+                // Load and parse MOC file
+                const mocParser = new SimpleMOCParser();
+                const mocPath = modelData.model;
+                document.getElementById('status').textContent = 'Parsing MOC file...';
+                
+                try {
+                    mocData = await mocParser.parseMOCFile(mocPath);
+                    console.log('MOC data parsed:', mocData);
+                    
+                    // Update parameters
+                    parameters = mocData.parameters;
+                    document.getElementById('parts-count').textContent = Object.keys(mocData.drawables).length;
+                } catch (mocError) {
+                    console.error('MOC parsing failed, using fallback:', mocError);
+                    // Use fallback drawable structure
+                    mocData = { drawables: createFallbackDrawables() };
+                }
+                
+                // Load texture
+                document.getElementById('status').textContent = 'Loading texture...';
+                const texturePath = modelData.textures[0];
+                texture = new Image();
+                texture.crossOrigin = 'anonymous';
+                
+                await new Promise((resolve, reject) => {
+                    texture.onload = resolve;
+                    texture.onerror = reject;
+                    texture.src = texturePath;
+                });
+                
+                document.getElementById('status').textContent = 'Model ready';
+                document.getElementById('loading').style.display = 'none';
+                
+                // Start animation
+                startAnimation();
+                
+            } catch (error) {
+                console.error('Failed to load model:', error);
+                document.getElementById('status').textContent = 'Load failed: ' + error.message;
+            }
+        }
+        
+        // Create fallback drawable structure
+        function createFallbackDrawables() {
+            return [
+                // Approximate positions based on typical Live2D layout
+                { id: 'background', baseX: 0.5, baseY: 0.5, width: 1, height: 1, uvX: 0, uvY: 0, uvWidth: 1, uvHeight: 1, zIndex: 0 },
+                { id: 'body', baseX: 0.5, baseY: 0.7, width: 0.5, height: 0.5, uvX: 0.25, uvY: 0.5, uvWidth: 0.5, uvHeight: 0.5, zIndex: 1 },
+                { id: 'head', baseX: 0.5, baseY: 0.3, width: 0.35, height: 0.35, uvX: 0.35, uvY: 0.1, uvWidth: 0.3, uvHeight: 0.3, zIndex: 2 },
+                { id: 'hair_back', baseX: 0.5, baseY: 0.25, width: 0.4, height: 0.4, uvX: 0, uvY: 0, uvWidth: 0.3, uvHeight: 0.4, zIndex: 1 },
+                { id: 'hair_front', baseX: 0.5, baseY: 0.22, width: 0.35, height: 0.25, uvX: 0.65, uvY: 0, uvWidth: 0.35, uvHeight: 0.3, zIndex: 4 },
+                { id: 'eye_left', baseX: 0.42, baseY: 0.28, width: 0.08, height: 0.05, uvX: 0.42, uvY: 0.25, uvWidth: 0.08, uvHeight: 0.05, zIndex: 3 },
+                { id: 'eye_right', baseX: 0.58, baseY: 0.28, width: 0.08, height: 0.05, uvX: 0.5, uvY: 0.25, uvWidth: 0.08, uvHeight: 0.05, zIndex: 3 },
+                { id: 'mouth', baseX: 0.5, baseY: 0.35, width: 0.08, height: 0.04, uvX: 0.46, uvY: 0.32, uvWidth: 0.08, uvHeight: 0.04, zIndex: 3 }
+            ];
+        }
+        
+        // Animation loop
+        function startAnimation() {
+            updateParameters();
+            render();
+            animationFrame = requestAnimationFrame(startAnimation);
+        }
+        
+        // Update parameters based on animations
+        function updateParameters() {
+            // Mouse follow
+            if (parameters['PARAM_ANGLE_X']) {
+                parameters['PARAM_ANGLE_X'].value = mouseX * 30;
+            }
+            if (parameters['PARAM_ANGLE_Y']) {
+                parameters['PARAM_ANGLE_Y'].value = mouseY * 30;
+            }
+            
+            // Breathing
+            breathingPhase += 0.02;
+            if (parameters['PARAM_BREATH']) {
+                parameters['PARAM_BREATH'].value = Math.sin(breathingPhase) * 0.5;
+            }
+            
+            // Auto blink
+            blinkTimer += 0.016;
+            if (blinkTimer > 3 + Math.random() * 2) {
+                blinkTimer = 0;
+            }
+            const blinkValue = blinkTimer < 0.15 ? 1 : 0;
+            if (parameters['PARAM_EYE_L_OPEN']) {
+                parameters['PARAM_EYE_L_OPEN'].value = 1 - blinkValue;
+            }
+            if (parameters['PARAM_EYE_R_OPEN']) {
+                parameters['PARAM_EYE_R_OPEN'].value = 1 - blinkValue;
+            }
+            
+            // Mouth
+            if (parameters['PARAM_MOUTH_OPEN_Y']) {
+                parameters['PARAM_MOUTH_OPEN_Y'].value = isLipSyncing ? mouthOpenValue : 0;
+            }
+        }
+        
+        // Render the model
+        function render() {
+            if (!texture || !mocData) return;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Model center and scale
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const scale = Math.min(canvas.width, canvas.height) * 0.8;
+            
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            
+            // Apply head rotation
+            const angleX = parameters['PARAM_ANGLE_X'] ? parameters['PARAM_ANGLE_X'].value : 0;
+            const angleY = parameters['PARAM_ANGLE_Y'] ? parameters['PARAM_ANGLE_Y'].value : 0;
+            ctx.transform(1, angleY * 0.001, angleX * 0.001, 1, 0, 0);
+            
+            // Sort drawables by z-index
+            const drawables = mocData.drawables || [];
+            const sortedDrawables = [...drawables].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+            
+            // Draw each part
+            sortedDrawables.forEach(drawable => {
+                drawPart(drawable, scale);
+            });
+            
+            ctx.restore();
+        }
+        
+        // Draw individual part
+        function drawPart(drawable, scale) {
+            const vertices = drawable.vertexPositions || drawable;
+            
+            // Calculate position
+            let x = (vertices.baseX - 0.5) * scale;
+            let y = (vertices.baseY - 0.5) * scale;
+            let width = vertices.width * scale;
+            let height = vertices.height * scale;
+            
+            // Apply parameter-based transformations
+            if (drawable.id === 'eye_left' || drawable.id === 'eye_right') {
+                // Eye closing
+                const eyeOpen = drawable.id === 'eye_left' ? 
+                    (parameters['PARAM_EYE_L_OPEN']?.value ?? 1) :
+                    (parameters['PARAM_EYE_R_OPEN']?.value ?? 1);
+                height *= eyeOpen;
+            }
+            
+            if (drawable.id === 'mouth') {
+                // Mouth opening
+                const mouthOpen = parameters['PARAM_MOUTH_OPEN_Y']?.value ?? 0;
+                height *= (1 + mouthOpen);
+                y += mouthOpen * scale * 0.02;
+            }
+            
+            // Apply breathing to body
+            if (drawable.id === 'body' || drawable.id === 'head') {
+                const breath = parameters['PARAM_BREATH']?.value ?? 0;
+                y += breath * scale * 0.01;
+            }
+            
+            // Draw from texture
+            ctx.save();
+            
+            // Apply physics for hair
+            if (drawable.id && drawable.id.includes('hair')) {
+                const physics = getHairPhysics(drawable.id);
+                ctx.transform(1, physics.skewY, physics.skewX, 1, physics.offsetX, physics.offsetY);
+            }
+            
+            ctx.drawImage(
+                texture,
+                vertices.uvX * texture.width,
+                vertices.uvY * texture.height,
+                vertices.uvWidth * texture.width,
+                vertices.uvHeight * texture.height,
+                x - width/2,
+                y - height/2,
+                width,
+                height
+            );
+            
+            ctx.restore();
+        }
+        
+        // Simple hair physics
+        function getHairPhysics(partId) {
+            const time = Date.now() * 0.001;
+            const windStrength = 0.02;
+            
+            return {
+                skewX: Math.sin(time * 2) * windStrength,
+                skewY: Math.cos(time * 1.5) * windStrength * 0.5,
+                offsetX: Math.sin(time) * 2,
+                offsetY: Math.abs(Math.sin(time * 0.5)) * 1
+            };
+        }
+        
+        // Test functions
+        window.testSpeak = function() {
+            speak('Halo! Aku adalah Monika. Senang bertemu denganmu!');
+        };
+        
+        window.testBlink = function() {
+            blinkTimer = 0;
+        };
+        
+        window.resetPose = function() {
+            mouseX = 0;
+            mouseY = 0;
+            breathingPhase = 0;
+            blinkTimer = 0;
+        };
+        
+        // TTS with lip sync
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                utterance.onstart = () => {
+                    isLipSyncing = true;
+                    const lipInterval = setInterval(() => {
+                        mouthOpenValue = 0.3 + Math.random() * 0.7;
+                    }, 100);
+                    
+                    utterance.onend = () => {
+                        isLipSyncing = false;
+                        mouthOpenValue = 0;
+                        clearInterval(lipInterval);
+                    };
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+        
+        // Message handler
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                console.log('Loading model from parent:', event.data.path);
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Wait for model path from parent
+        document.getElementById('status').textContent = 'Waiting for model...';
+    </script>
+</body>
+</html>

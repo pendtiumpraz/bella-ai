@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Cubism 3 Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas {
+            display: block;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #ff5a8d;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+    </style>
+    <!-- Pixi.js -->
+    <script src="https://pixijs.download/release/pixi.min.js"></script>
+    <!-- Cubism 3 SDK -->
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+</head>
+<body>
+    <div id="loading">Loading Live2D Cubism 3 Model...</div>
+    
+    <div class="info">
+        <h3>Bella Live2D Avatar</h3>
+        <p>Model: <span id="model-name">-</span></p>
+        <p>Status: <span id="status">Initializing...</span></p>
+        <p>Type: <span id="model-type">-</span></p>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="testSpeak()">Test Speak</button>
+        <button onclick="testAnimation()">Test Animation</button>
+        <button onclick="switchModel()">Switch Model</button>
+    </div>
+
+    <script>
+        // Create Pixi Application
+        const app = new PIXI.Application({
+            view: document.getElementById('canvas'),
+            width: window.innerWidth,
+            height: window.innerHeight,
+            backgroundColor: 0x000000,
+            backgroundAlpha: 0,
+            autoStart: true,
+        });
+
+        let currentModel = null;
+        let currentModelPath = '';
+        let modelContainer = null;
+        let isLipSyncing = false;
+        
+        // Wait for app to be ready
+        let appReady = false;
+        app.loader.onComplete.add(() => {
+            appReady = true;
+        });
+        
+        // Model list
+        const models = [
+            { path: 'vtuber/1443307414/nono/nono.model3.json', type: 'Cubism 3' },
+            { path: 'vtuber/1263521352/monika/monika.model.json', type: 'Live2D 2.x' },
+            { path: 'vtuber/1615393578/haru/haru.model3.json', type: 'Cubism 3' }
+        ];
+        let modelIndex = 0;
+
+        // Load Live2D Model
+        async function loadLive2DModel(modelPath, modelType) {
+            try {
+                currentModelPath = modelPath;
+                document.getElementById('model-name').textContent = modelPath.split('/').pop();
+                document.getElementById('model-type').textContent = modelType;
+                document.getElementById('status').textContent = 'Loading model...';
+                
+                // Clear previous model
+                if (modelContainer) {
+                    app.stage.removeChild(modelContainer);
+                    modelContainer.destroy();
+                }
+                
+                // Create container for model
+                modelContainer = new PIXI.Container();
+                modelContainer.x = window.innerWidth / 2;
+                modelContainer.y = window.innerHeight / 2 + 100;
+                
+                // Load model data
+                const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
+                const response = await fetch(modelPath);
+                const modelJson = await response.json();
+                
+                // For now, just load and display the texture
+                // Real implementation would need .moc3 parser
+                let texturePath;
+                if (modelType === 'Cubism 3') {
+                    texturePath = modelDir + modelJson.FileReferences.Textures[0];
+                } else {
+                    texturePath = modelJson.textures[0];
+                    if (texturePath.includes('D:/')) {
+                        // Fix absolute path
+                        const textureFile = texturePath.split('/').pop();
+                        const modelName = modelPath.split('/').pop().replace('.model.json', '');
+                        texturePath = modelDir + modelName + '.2048/' + textureFile;
+                    }
+                }
+                
+                console.log('Loading texture:', texturePath);
+                
+                // Load texture
+                const texture = await PIXI.Texture.from(texturePath);
+                const sprite = new PIXI.Sprite(texture);
+                sprite.anchor.set(0.5);
+                sprite.scale.set(0.5);
+                
+                modelContainer.addChild(sprite);
+                app.stage.addChild(modelContainer);
+                
+                // Start animations
+                startAnimations();
+                
+                document.getElementById('status').textContent = 'Model loaded (texture only)';
+                document.getElementById('loading').style.display = 'none';
+                
+            } catch (error) {
+                console.error('Failed to load model:', error);
+                document.getElementById('status').textContent = 'Load failed: ' + error.message;
+            }
+        }
+        
+        // Simple animations
+        function startAnimations() {
+            app.ticker.add(() => {
+                if (!modelContainer) return;
+                
+                // Breathing
+                const breathing = Math.sin(Date.now() * 0.001) * 0.02;
+                modelContainer.scale.y = 0.5 * (1 + breathing);
+                
+                // Mouse follow
+                const mousePosition = app.renderer.plugins.interaction.mouse.global;
+                const dx = (mousePosition.x - modelContainer.x) / window.innerWidth;
+                const dy = (mousePosition.y - modelContainer.y) / window.innerHeight;
+                
+                modelContainer.rotation = dx * 0.3;
+                modelContainer.skew.set(dy * 0.1, 0);
+                
+                // Lip sync
+                if (isLipSyncing) {
+                    modelContainer.scale.x = 0.5 * (1 + Math.random() * 0.1);
+                }
+            });
+        }
+        
+        // Test functions
+        window.testSpeak = function() {
+            const text = 'Halo! Saya menggunakan Live2D Cubism 3. Model ini butuh parser khusus untuk .moc3 file.';
+            speak(text);
+        };
+        
+        window.testAnimation = function() {
+            document.getElementById('status').textContent = 'Playing animation...';
+            
+            // Simple shake
+            const originalX = modelContainer.x;
+            let time = 0;
+            const interval = setInterval(() => {
+                time += 0.1;
+                modelContainer.x = originalX + Math.sin(time * 10) * 10;
+                if (time > 2) {
+                    clearInterval(interval);
+                    modelContainer.x = originalX;
+                    document.getElementById('status').textContent = 'Ready';
+                }
+            }, 16);
+        };
+        
+        window.switchModel = function() {
+            modelIndex = (modelIndex + 1) % models.length;
+            const model = models[modelIndex];
+            loadLive2DModel(model.path, model.type);
+        };
+        
+        // TTS
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                utterance.onstart = () => {
+                    isLipSyncing = true;
+                    document.getElementById('status').textContent = 'Speaking...';
+                };
+                
+                utterance.onend = () => {
+                    isLipSyncing = false;
+                    document.getElementById('status').textContent = 'Ready';
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+        
+        // Message handler
+        window.addEventListener('message', (event) => {
+            console.log('Cubism3 viewer received message:', event.data);
+            if (event.data.type === 'loadModel' && event.data.path) {
+                console.log('Loading model from parent:', event.data.path);
+                const isModel3 = event.data.path.includes('.model3.json');
+                loadLive2DModel(event.data.path, isModel3 ? 'Cubism 3' : 'Live2D 2.x');
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Window resize
+        window.addEventListener('resize', () => {
+            app.renderer.resize(window.innerWidth, window.innerHeight);
+            if (modelContainer) {
+                modelContainer.x = window.innerWidth / 2;
+                modelContainer.y = window.innerHeight / 2 + 100;
+            }
+        });
+        
+        // Wait for parent to send model path
+        document.getElementById('status').textContent = 'Waiting for model selection...';
+        
+        // If no message received after 2 seconds, load default
+        setTimeout(() => {
+            if (!currentModelPath) {
+                console.log('No model specified, loading default');
+                const firstModel = models[0];
+                loadLive2DModel(firstModel.path, firstModel.type);
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

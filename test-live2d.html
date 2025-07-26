@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Test Live2D Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .info {
+            background: #f0f0f0;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Live2D Viewer</h1>
+        <div class="info">
+            <p>Click the buttons below to test different Live2D models:</p>
+            <p>Server should be running on http://localhost:8000</p>
+            <p>MOC Parser should be running on http://localhost:8082</p>
+        </div>
+        
+        <div>
+            <button onclick="loadModel('vtuber/1263521352/monika/monika.model.json')">Load Monika</button>
+            <button onclick="loadModel('vtuber/1443307414/nono/nono.model3.json')">Load Nono (Cubism 3)</button>
+            <button onclick="loadModel('vtuber/1175870452/Kurama_Koharu/Kurama_Koharu.model.json')">Load Kurama Koharu</button>
+        </div>
+        
+        <iframe id="viewer" src="live2d-cubism-viewer.html"></iframe>
+        
+        <div class="info">
+            <h3>Console Output:</h3>
+            <pre id="console"></pre>
+        </div>
+    </div>
+    
+    <script>
+        const viewer = document.getElementById('viewer');
+        const consoleOutput = document.getElementById('console');
+        
+        function log(message) {
+            const time = new Date().toLocaleTimeString();
+            consoleOutput.textContent += `[${time}] ${message}\n`;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+        
+        function loadModel(path) {
+            log(`Loading model: ${path}`);
+            
+            // Send message to iframe
+            viewer.contentWindow.postMessage({
+                type: 'loadModel',
+                path: path
+            }, '*');
+        }
+        
+        // Listen for messages from iframe
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'log') {
+                log(event.data.message);
+            }
+        });
+        
+        // Test server connectivity
+        fetch('http://localhost:8082/health')
+            .then(r => r.json())
+            .then(data => log('MOC Parser Service: ' + data.status))
+            .catch(e => log('MOC Parser Service: Not running - ' + e.message));
+    </script>
+</body>
+</html>

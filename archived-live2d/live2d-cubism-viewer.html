@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Cubism Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+            max-width: 300px;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #ff5580;
+        }
+    </style>
+    <!-- Pixi.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.3/pixi.min.js"></script>
+</head>
+<body>
+    <div class="info">
+        <h3>Live2D Cubism Model</h3>
+        <p>Model: <span id="model-name">Loading...</span></p>
+        <p>Status: <span id="status">Initializing...</span></p>
+        <p>Type: <span id="model-type">Unknown</span></p>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="playMotion()">Play Motion</button>
+        <button onclick="randomExpression()">Random Expression</button>
+        <button onclick="speak('Halo! Aku senang bertemu denganmu!')">Test Speak</button>
+    </div>
+
+    <script>
+        // Initialize PIXI Application
+        const app = new PIXI.Application({
+            view: document.getElementById('canvas'),
+            width: window.innerWidth,
+            height: window.innerHeight,
+            backgroundAlpha: 0,
+            resolution: window.devicePixelRatio || 1,
+            antialias: true
+        });
+
+        // Model state
+        let model = {
+            container: null,
+            sprites: {},
+            textures: [],
+            data: null,
+            mocInfo: null,
+            parameters: {},
+            parts: {}
+        };
+
+        // Animation state
+        let animationTime = 0;
+        let mousePos = { x: 0, y: 0 };
+        let lipSyncActive = false;
+        let lipSyncPower = 0;
+        
+        // Track mouse position
+        app.view.addEventListener('mousemove', (e) => {
+            const rect = app.view.getBoundingClientRect();
+            mousePos.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mousePos.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        });
+
+        // Load Live2D model
+        async function loadLive2DModel(modelPath) {
+            try {
+                updateStatus('Loading model data...');
+                
+                // Clean up previous model
+                if (model.container) {
+                    app.stage.removeChild(model.container);
+                    model.container.destroy({ children: true });
+                }
+                
+                // Reset model state
+                model = {
+                    container: new PIXI.Container(),
+                    sprites: {},
+                    textures: [],
+                    data: null,
+                    mocInfo: null,
+                    parameters: {},
+                    parts: {}
+                };
+                
+                // Convert absolute path to relative path if needed
+                if (modelPath.startsWith('/mnt/')) {
+                    modelPath = modelPath.replace('/mnt/d/AI/Bella/', '');
+                }
+                
+                // Set model name
+                const modelName = modelPath.split('/').pop();
+                document.getElementById('model-name').textContent = modelName;
+                
+                // Load model JSON
+                const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
+                const response = await fetch(modelPath);
+                if (!response.ok) {
+                    throw new Error(`Failed to load model: ${response.status}`);
+                }
+                model.data = await response.json();
+                
+                // Determine model version
+                let modelType = 'Unknown';
+                if (model.data.Version === 3 || model.data.FileReferences) {
+                    modelType = 'Cubism 3.0+';
+                } else if (model.data.version) {
+                    modelType = 'Cubism 2.0';
+                }
+                document.getElementById('model-type').textContent = modelType;
+                
+                // Parse MOC file
+                const mocPath = getMocPath(model.data, modelDir);
+                if (mocPath) {
+                    updateStatus('Parsing MOC data...');
+                    model.mocInfo = await parseMOC(mocPath);
+                }
+                
+                // Load textures
+                updateStatus('Loading textures...');
+                await loadTextures(model.data, modelDir);
+                
+                // Build model
+                updateStatus('Building model...');
+                buildModel();
+                
+                // Position model
+                model.container.x = app.screen.width / 2;
+                model.container.y = app.screen.height * 0.7;
+                
+                // Add to stage
+                app.stage.addChild(model.container);
+                
+                // Start animation
+                app.ticker.add(animate);
+                
+                updateStatus('Model loaded successfully');
+                
+            } catch (error) {
+                console.error('Error loading model:', error);
+                updateStatus('Error: ' + error.message);
+            }
+        }
+        
+        // Get MOC file path
+        function getMocPath(modelData, modelDir) {
+            if (modelData.FileReferences?.Moc) {
+                return modelDir + modelData.FileReferences.Moc;
+            } else if (modelData.model) {
+                return modelDir + modelData.model;
+            }
+            return null;
+        }
+        
+        // Parse MOC using our service
+        async function parseMOC(mocPath) {
+            try {
+                // Convert to absolute path for the parser service
+                let absolutePath = mocPath;
+                if (!mocPath.startsWith('/')) {
+                    absolutePath = '/mnt/d/AI/Bella/' + mocPath;
+                }
+                
+                const response = await fetch('http://localhost:8082/parse-moc', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_path: absolutePath })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    return result.data;
+                }
+                throw new Error(result.error || 'Failed to parse MOC');
+            } catch (error) {
+                console.warn('MOC parsing failed:', error);
+                return null;
+            }
+        }
+        
+        // Load textures
+        async function loadTextures(modelData, modelDir) {
+            let textureList = [];
+            
+            if (modelData.FileReferences?.Textures) {
+                textureList = modelData.FileReferences.Textures;
+            } else if (modelData.textures) {
+                textureList = modelData.textures;
+            }
+            
+            for (let texPath of textureList) {
+                // Fix absolute paths
+                if (texPath.includes(':/')) {
+                    const parts = texPath.split('/');
+                    texPath = parts.slice(-2).join('/');
+                }
+                
+                const fullPath = modelDir + texPath;
+                try {
+                    const texture = await PIXI.Assets.load(fullPath);
+                    model.textures.push(texture);
+                } catch (error) {
+                    console.error('Failed to load texture:', fullPath);
+                }
+            }
+        }
+        
+        // Build model from texture atlas
+        function buildModel() {
+            if (!model.textures.length) {
+                throw new Error('No textures loaded');
+            }
+            
+            const baseTexture = model.textures[0];
+            const textureWidth = baseTexture.width;
+            const textureHeight = baseTexture.height;
+            
+            // Create layered structure for Live2D model
+            const layers = [
+                // Background layers
+                { id: 'bg', x: 0, y: 0, w: 1, h: 1, z: 0 },
+                
+                // Body parts
+                { id: 'body_back', x: 0.2, y: 0.4, w: 0.6, h: 0.6, z: 1 },
+                { id: 'body', x: 0.25, y: 0.45, w: 0.5, h: 0.5, z: 5 },
+                
+                // Hair layers
+                { id: 'hair_back', x: 0.1, y: 0, w: 0.8, h: 0.5, z: 2 },
+                { id: 'hair_side_left', x: 0, y: 0.1, w: 0.3, h: 0.4, z: 8 },
+                { id: 'hair_side_right', x: 0.7, y: 0.1, w: 0.3, h: 0.4, z: 8 },
+                
+                // Face
+                { id: 'face', x: 0.3, y: 0.1, w: 0.4, h: 0.4, z: 6 },
+                
+                // Face features
+                { id: 'eye_left', x: 0.35, y: 0.2, w: 0.1, h: 0.08, z: 7 },
+                { id: 'eye_right', x: 0.55, y: 0.2, w: 0.1, h: 0.08, z: 7 },
+                { id: 'eyebrow_left', x: 0.35, y: 0.18, w: 0.1, h: 0.03, z: 8 },
+                { id: 'eyebrow_right', x: 0.55, y: 0.18, w: 0.1, h: 0.03, z: 8 },
+                { id: 'mouth', x: 0.45, y: 0.28, w: 0.1, h: 0.05, z: 7 },
+                
+                // Hair front
+                { id: 'hair_front', x: 0.15, y: 0, w: 0.7, h: 0.45, z: 10 },
+                
+                // Accessories
+                { id: 'accessory', x: 0.3, y: 0.05, w: 0.4, h: 0.2, z: 11 }
+            ];
+            
+            // Sort by z-index
+            layers.sort((a, b) => a.z - b.z);
+            
+            // Create sprites for each layer
+            layers.forEach(layer => {
+                const sprite = new PIXI.Sprite(
+                    new PIXI.Texture(
+                        baseTexture,
+                        new PIXI.Rectangle(
+                            layer.x * textureWidth,
+                            layer.y * textureHeight,
+                            layer.w * textureWidth,
+                            layer.h * textureHeight
+                        )
+                    )
+                );
+                
+                sprite.anchor.set(0.5);
+                sprite.position.set(
+                    (layer.x + layer.w/2 - 0.5) * 400,
+                    (layer.y + layer.h/2 - 0.5) * 600
+                );
+                
+                model.sprites[layer.id] = sprite;
+                model.container.addChild(sprite);
+                
+                // Store original transform
+                sprite._originalX = sprite.x;
+                sprite._originalY = sprite.y;
+                sprite._originalScaleX = sprite.scale.x;
+                sprite._originalScaleY = sprite.scale.y;
+            });
+            
+            // Adjust overall scale
+            model.container.scale.set(1.5);
+        }
+        
+        // Animation loop
+        function animate(delta) {
+            if (!model.container) return;
+            
+            animationTime += delta * 0.016;
+            
+            // Face tracking
+            if (model.sprites.face) {
+                model.sprites.face.rotation = mousePos.x * 0.1;
+                model.sprites.face.skew.x = mousePos.y * 0.05;
+            }
+            
+            // Eye tracking
+            ['eye_left', 'eye_right'].forEach(eyeId => {
+                if (model.sprites[eyeId]) {
+                    model.sprites[eyeId].x = model.sprites[eyeId]._originalX + mousePos.x * 10;
+                    model.sprites[eyeId].y = model.sprites[eyeId]._originalY + mousePos.y * 5;
+                }
+            });
+            
+            // Hair physics
+            const hairSway = Math.sin(animationTime * 2) * 0.02;
+            ['hair_front', 'hair_side_left', 'hair_side_right'].forEach(hairId => {
+                if (model.sprites[hairId]) {
+                    model.sprites[hairId].rotation = hairSway + mousePos.x * 0.05;
+                    model.sprites[hairId].x = model.sprites[hairId]._originalX + Math.sin(animationTime * 1.5) * 3;
+                }
+            });
+            
+            // Blinking
+            const blinkValue = Math.sin(animationTime * 0.5) + Math.sin(animationTime * 0.3);
+            if (blinkValue > 1.8) {
+                ['eye_left', 'eye_right'].forEach(eyeId => {
+                    if (model.sprites[eyeId]) {
+                        model.sprites[eyeId].scale.y = 0.1;
+                    }
+                });
+            } else {
+                ['eye_left', 'eye_right'].forEach(eyeId => {
+                    if (model.sprites[eyeId]) {
+                        model.sprites[eyeId].scale.y = model.sprites[eyeId]._originalScaleY;
+                    }
+                });
+            }
+            
+            // Mouth animation
+            if (model.sprites.mouth) {
+                if (lipSyncActive) {
+                    model.sprites.mouth.scale.y = model.sprites.mouth._originalScaleY * (1 + lipSyncPower);
+                    model.sprites.mouth.scale.x = model.sprites.mouth._originalScaleX * (1 + lipSyncPower * 0.3);
+                } else {
+                    model.sprites.mouth.scale.y = model.sprites.mouth._originalScaleY * (1 + Math.sin(animationTime * 3) * 0.05);
+                }
+            }
+            
+            // Breathing
+            const breathing = Math.sin(animationTime * 0.3) * 0.015;
+            if (model.sprites.body) {
+                model.sprites.body.scale.y = model.sprites.body._originalScaleY * (1 + breathing);
+            }
+            
+            // Overall sway
+            model.container.rotation = Math.sin(animationTime * 0.2) * 0.01;
+        }
+        
+        // Play motion animation
+        window.playMotion = function() {
+            let motionTime = 0;
+            const motionTicker = (delta) => {
+                motionTime += delta * 0.02;
+                
+                // Bouncy motion
+                model.container.scale.y = 1.5 * (1 + Math.sin(motionTime * 5) * 0.1);
+                
+                // Enhanced hair movement
+                ['hair_front', 'hair_side_left', 'hair_side_right'].forEach(hairId => {
+                    if (model.sprites[hairId]) {
+                        model.sprites[hairId].rotation = Math.sin(motionTime * 8) * 0.3;
+                    }
+                });
+                
+                if (motionTime > Math.PI * 2) {
+                    app.ticker.remove(motionTicker);
+                    model.container.scale.y = 1.5;
+                }
+            };
+            app.ticker.add(motionTicker);
+        };
+        
+        // Random expression
+        window.randomExpression = function() {
+            const expressions = [
+                { eyes: 1.0, mouth: 1.0, eyebrows: 0 },      // Normal
+                { eyes: 0.7, mouth: 1.5, eyebrows: -0.1 },   // Happy
+                { eyes: 1.2, mouth: 0.5, eyebrows: 0.1 },    // Surprised
+                { eyes: 0.5, mouth: 0.8, eyebrows: -0.2 }    // Sleepy
+            ];
+            
+            const expr = expressions[Math.floor(Math.random() * expressions.length)];
+            
+            // Apply expression
+            ['eye_left', 'eye_right'].forEach(eyeId => {
+                if (model.sprites[eyeId]) {
+                    model.sprites[eyeId].scale.y = model.sprites[eyeId]._originalScaleY * expr.eyes;
+                }
+            });
+            
+            if (model.sprites.mouth) {
+                model.sprites.mouth.scale.y = model.sprites.mouth._originalScaleY * expr.mouth;
+            }
+            
+            ['eyebrow_left', 'eyebrow_right'].forEach(browId => {
+                if (model.sprites[browId]) {
+                    model.sprites[browId].y = model.sprites[browId]._originalY + expr.eyebrows * 10;
+                }
+            });
+        };
+        
+        // Speak function with lip sync
+        window.speak = function(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                const voices = speechSynthesis.getVoices();
+                const indonesianVoice = voices.find(v => v.lang.startsWith('id'));
+                if (indonesianVoice) utterance.voice = indonesianVoice;
+                
+                utterance.onstart = () => {
+                    lipSyncActive = true;
+                    const lipInterval = setInterval(() => {
+                        lipSyncPower = Math.random() * 0.5 + 0.2;
+                    }, 100);
+                    
+                    utterance.onend = () => {
+                        lipSyncActive = false;
+                        lipSyncPower = 0;
+                        clearInterval(lipInterval);
+                    };
+                };
+                
+                speechSynthesis.speak(utterance);
+            }
+        };
+        
+        // Update status
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+        
+        // Handle messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Resize handler
+        window.addEventListener('resize', () => {
+            app.renderer.resize(window.innerWidth, window.innerHeight);
+            if (model.container) {
+                model.container.x = window.innerWidth / 2;
+                model.container.y = window.innerHeight * 0.7;
+            }
+        });
+        
+        // Initial state
+        updateStatus('Waiting for model selection...');
+    </script>
+</body>
+</html>

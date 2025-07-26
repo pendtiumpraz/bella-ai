@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Viewer - Pixi</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas {
+            display: block;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #ff5a8d;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+    </style>
+    <!-- Pixi.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+    <!-- Live2D Core -->
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <!-- Pixi Live2D Display -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js"></script>
+</head>
+<body>
+    <div id="loading">Loading Live2D Model...<br><small>Assembling model parts...</small></div>
+    
+    <div class="info">
+        <h3>Bella Live2D Avatar</h3>
+        <p>Model: <span id="model-name">-</span></p>
+        <p>Status: <span id="status">Initializing...</span></p>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="playMotion()">Play Motion</button>
+        <button onclick="setExpression()">Set Expression</button>
+        <button onclick="speak('Halo! Aku adalah avatar Live2D yang cantik!')">Test Speak</button>
+    </div>
+
+    <script type="module">
+        import { Live2DModelLoader } from './live2d-loader.js';
+        
+        // Initialize PIXI Application
+        const app = new PIXI.Application({
+            view: document.getElementById('canvas'),
+            autoStart: true,
+            transparent: true,
+            resizeTo: window
+        });
+        
+        // Register Live2D plugin
+        window.PIXI.live2d = PIXI.live2d;
+        
+        let currentModel = null;
+        let modelLoader = new Live2DModelLoader();
+        let isLipSyncing = false;
+        
+        // Load Live2D Model with proper parts assembly
+        async function loadLive2DModel(modelPath) {
+            try {
+                document.getElementById('model-name').textContent = modelPath.split('/').pop();
+                document.getElementById('status').textContent = 'Loading and fixing paths...';
+                
+                // Load and fix model paths
+                const fixedModelData = await modelLoader.loadModel(modelPath);
+                
+                // Create a temporary blob URL for the fixed model
+                const modelBlob = new Blob([JSON.stringify(fixedModelData)], { type: 'application/json' });
+                const modelUrl = URL.createObjectURL(modelBlob);
+                
+                // Remove previous model
+                if (currentModel) {
+                    app.stage.removeChild(currentModel);
+                    currentModel.destroy();
+                }
+                
+                // Load model using pixi-live2d-display
+                try {
+                    currentModel = await PIXI.live2d.Live2DModel.from(modelUrl);
+                    
+                    // Configure model
+                    currentModel.scale.set(0.3, 0.3);
+                    currentModel.x = app.screen.width / 2;
+                    currentModel.y = app.screen.height / 2 + 100;
+                    currentModel.interactive = true;
+                    currentModel.buttonMode = true;
+                    
+                    // Add to stage
+                    app.stage.addChild(currentModel);
+                    
+                    // Setup interactions
+                    currentModel.on('pointerdown', (e) => {
+                        currentModel.tap(e.data.global.x, e.data.global.y);
+                    });
+                    
+                    // Start idle animation
+                    if (currentModel.internalModel.motionManager) {
+                        const motionGroups = currentModel.internalModel.motionManager.motionGroups;
+                        if (motionGroups && motionGroups.idle) {
+                            currentModel.motion('idle');
+                        }
+                    }
+                    
+                    document.getElementById('status').textContent = 'Model loaded successfully';
+                    document.getElementById('loading').style.display = 'none';
+                    
+                    // Clean up blob URL
+                    URL.revokeObjectURL(modelUrl);
+                    
+                } catch (modelError) {
+                    console.error('Failed to create Live2D model:', modelError);
+                    // Fallback to simple rendering
+                    await loadSimpleModel(fixedModelData, modelPath);
+                }
+                
+            } catch (error) {
+                console.error('Failed to load model:', error);
+                document.getElementById('status').textContent = 'Load failed: ' + error.message;
+                document.getElementById('loading').innerHTML = 'Failed to load model!<br><small>' + error.message + '</small>';
+            }
+        }
+        
+        // Fallback simple model loader
+        async function loadSimpleModel(modelData, modelPath) {
+            console.log('Using fallback simple renderer');
+            document.getElementById('status').textContent = 'Using simple renderer';
+            
+            // Create container
+            currentModel = new PIXI.Container();
+            currentModel.x = app.screen.width / 2;
+            currentModel.y = app.screen.height / 2;
+            
+            // Load texture
+            if (modelData.textures && modelData.textures.length > 0) {
+                const texture = await PIXI.Texture.from(modelData.textures[0]);
+                const sprite = new PIXI.Sprite(texture);
+                sprite.anchor.set(0.5);
+                sprite.scale.set(0.5);
+                currentModel.addChild(sprite);
+                
+                // Simple animations
+                app.ticker.add(() => {
+                    if (currentModel) {
+                        // Breathing
+                        const breathe = Math.sin(Date.now() * 0.001) * 0.01;
+                        currentModel.scale.y = 1 + breathe;
+                        
+                        // Head follow mouse
+                        const mousePosition = app.renderer.plugins.interaction.mouse.global;
+                        const dx = mousePosition.x - currentModel.x;
+                        const dy = mousePosition.y - currentModel.y;
+                        currentModel.rotation = dx * 0.0001;
+                        currentModel.skew.set(dy * 0.0001, 0);
+                    }
+                });
+            }
+            
+            app.stage.addChild(currentModel);
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        // Play motion
+        window.playMotion = function() {
+            if (currentModel && currentModel.motion) {
+                const motions = ['tap_body', 'shake', 'flick_head', 'pinch_out'];
+                const randomMotion = motions[Math.floor(Math.random() * motions.length)];
+                currentModel.motion(randomMotion);
+                document.getElementById('status').textContent = 'Motion: ' + randomMotion;
+            }
+        };
+        
+        // Set expression
+        window.setExpression = function() {
+            if (currentModel && currentModel.expression) {
+                const expressions = ['f01', 'f02', 'f03', 'f04'];
+                const randomExpr = expressions[Math.floor(Math.random() * expressions.length)];
+                currentModel.expression(randomExpr);
+                document.getElementById('status').textContent = 'Expression: ' + randomExpr;
+            }
+        };
+        
+        // Speak with lip sync
+        window.speak = function(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                utterance.onstart = () => {
+                    isLipSyncing = true;
+                    document.getElementById('status').textContent = 'Speaking...';
+                    
+                    if (currentModel && currentModel.internalModel) {
+                        // Lip sync parameter animation
+                        const lipSyncInterval = setInterval(() => {
+                            if (!isLipSyncing) {
+                                clearInterval(lipSyncInterval);
+                                return;
+                            }
+                            
+                            const value = 0.5 + Math.random() * 0.5;
+                            // Try different mouth parameters
+                            const mouthParams = ['ParamMouthOpenY', 'PARAM_MOUTH_OPEN_Y', 'ParamMouthOpen'];
+                            
+                            for (const param of mouthParams) {
+                                if (currentModel.internalModel.coreModel.setParameterValueById) {
+                                    currentModel.internalModel.coreModel.setParameterValueById(param, value);
+                                }
+                            }
+                        }, 100);
+                    }
+                };
+                
+                utterance.onend = () => {
+                    isLipSyncing = false;
+                    document.getElementById('status').textContent = 'Ready';
+                    
+                    // Reset mouth
+                    if (currentModel && currentModel.internalModel) {
+                        const mouthParams = ['ParamMouthOpenY', 'PARAM_MOUTH_OPEN_Y', 'ParamMouthOpen'];
+                        for (const param of mouthParams) {
+                            if (currentModel.internalModel.coreModel.setParameterValueById) {
+                                currentModel.internalModel.coreModel.setParameterValueById(param, 0);
+                            }
+                        }
+                    }
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        };
+        
+        // Listen for messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                console.log('Loading Live2D model from parent:', event.data.path);
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Mouse tracking for head movement
+        app.view.addEventListener('mousemove', (e) => {
+            if (currentModel && currentModel.focus) {
+                const rect = app.view.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / rect.width * 2 - 1;
+                const y = (e.clientY - rect.top) / rect.height * 2 - 1;
+                currentModel.focus(x, -y);
+            }
+        });
+        
+        // Load default model
+        loadLive2DModel('vtuber/1263521352/monika/monika.model.json');
+    </script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Test Avatar Selection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #ff6b9d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #ff5a8d;
+        }
+        .log {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Avatar Selection System Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Test Avatar Models List</h2>
+        <button onclick="testModelsList()">Load Models List</button>
+        <div id="models-log" class="log"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Test VRM Loading</h2>
+        <button onclick="testVRMLoad()">Test VRM Model</button>
+        <iframe id="vrm-test" src="vrm-avatar.html" style="width: 100%; height: 400px; border: 1px solid #ccc;"></iframe>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Test Cross-Window Communication</h2>
+        <button onclick="openAvatarSelector()">Open Avatar Selector</button>
+        <button onclick="sendTestMessage()">Send Test Message to VRM</button>
+        <div id="comm-log" class="log"></div>
+    </div>
+    
+    <script type="module">
+        import { getAllModels } from './vtuberModels.js';
+        
+        window.testModelsList = function() {
+            const models = getAllModels();
+            const log = document.getElementById('models-log');
+            log.innerHTML = `<strong>Total Models: ${models.length}</strong><br>`;
+            models.forEach(model => {
+                log.innerHTML += `${model.type}: ${model.name} - ${model.path}<br>`;
+            });
+        };
+        
+        window.testVRMLoad = function() {
+            const vrmFrame = document.getElementById('vrm-test');
+            vrmFrame.contentWindow.postMessage({
+                type: 'loadModel',
+                path: 'vtuber/Galih Hoodie Esteh.vrm'
+            }, '*');
+            
+            const log = document.getElementById('comm-log');
+            log.innerHTML += 'Sent VRM load message<br>';
+        };
+        
+        window.openAvatarSelector = function() {
+            const avatarWindow = window.open('avatarSelector.html', 'AvatarSelector', 'width=1200,height=800');
+            
+            window.addEventListener('message', (event) => {
+                const log = document.getElementById('comm-log');
+                log.innerHTML += `Received message: ${JSON.stringify(event.data)}<br>`;
+                
+                if (event.data.type === 'avatarSelected') {
+                    log.innerHTML += `<strong>Avatar selected: ${event.data.avatar.name}</strong><br>`;
+                }
+            });
+        };
+        
+        window.sendTestMessage = function() {
+            const vrmFrame = document.getElementById('vrm-test');
+            vrmFrame.contentWindow.postMessage({
+                type: 'speak',
+                text: 'Halo! Ini adalah test untuk avatar VRM.'
+            }, '*');
+            
+            const log = document.getElementById('comm-log');
+            log.innerHTML += 'Sent speak message to VRM<br>';
+        };
+    </script>
+</body>
+</html>

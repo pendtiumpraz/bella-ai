@@ -1,9 +1,0 @@
-{
-	"Version": 3,
-	"FileReferences": {
-		"Moc": "jack_facerig.moc3",
-		"Textures": [
-			"jack_facerig.2048/texture_00.png"
-		]
-	}
-}

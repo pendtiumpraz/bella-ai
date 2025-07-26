@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        canvas {
+            display: block;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #ff5a8d;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading Live2D Model...<br><small>Fixing model paths...</small></div>
+    
+    <div class="info">
+        <h3>Bella Live2D Avatar</h3>
+        <p>Model: <span id="model-name">-</span></p>
+        <p>Status: <span id="status">Initializing...</span></p>
+    </div>
+    
+    <canvas id="live2d-canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="testSpeak()">Test Speak</button>
+        <button onclick="randomMotion()">Random Motion</button>
+        <button onclick="changeExpression()">Change Expression</button>
+    </div>
+
+    <!-- Import Live2D loader -->
+    <script type="module">
+        import { Live2DModelLoader } from './live2d-loader.js';
+        
+        const canvas = document.getElementById('live2d-canvas');
+        const ctx = canvas.getContext('2d');
+        let currentModelPath = '';
+        let modelLoader = new Live2DModelLoader();
+        let modelData = null;
+        let textureImage = null;
+        let isLipSyncing = false;
+        let mouthOpenValue = 0;
+        let blinkValue = 0;
+        let lastBlinkTime = Date.now();
+        
+        // Mouse position for head tracking
+        let mouseX = 0;
+        let mouseY = 0;
+        
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Mouse tracking
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseY = (e.clientY / window.innerHeight) * 2 - 1;
+        });
+        
+        // Simple 2D Live2D renderer
+        async function loadLive2DModel(modelPath) {
+            try {
+                currentModelPath = modelPath;
+                document.getElementById('model-name').textContent = modelPath.split('/').pop();
+                document.getElementById('status').textContent = 'Loading model...';
+                
+                // Load and fix model paths
+                modelData = await modelLoader.loadModel(modelPath);
+                console.log('Model data loaded:', modelData);
+                
+                // Load texture
+                if (modelData.textures && modelData.textures.length > 0) {
+                    const texturePath = modelData.textures[0];
+                    console.log('Loading texture:', texturePath);
+                    
+                    textureImage = new Image();
+                    textureImage.crossOrigin = 'anonymous';
+                    
+                    await new Promise((resolve, reject) => {
+                        textureImage.onload = resolve;
+                        textureImage.onerror = reject;
+                        textureImage.src = texturePath;
+                    });
+                    
+                    console.log('Texture loaded successfully');
+                    document.getElementById('status').textContent = 'Model loaded';
+                    document.getElementById('loading').style.display = 'none';
+                    
+                    // Start animation loop
+                    animate();
+                } else {
+                    throw new Error('No textures found in model');
+                }
+                
+            } catch (error) {
+                console.error('Failed to load Live2D model:', error);
+                document.getElementById('status').textContent = 'Load failed: ' + error.message;
+                document.getElementById('loading').innerHTML = 'Failed to load model!<br><small>' + error.message + '</small>';
+            }
+        }
+        
+        // Animation loop
+        function animate() {
+            // Clear canvas
+            ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (textureImage && textureImage.complete) {
+                // Calculate position and scale
+                const scale = Math.min(canvas.width / 512, canvas.height / 512) * 0.8;
+                const x = canvas.width / 2;
+                const y = canvas.height / 2;
+                
+                ctx.save();
+                
+                // Apply transformations
+                ctx.translate(x, y);
+                ctx.scale(scale, scale);
+                
+                // Head tracking
+                ctx.rotate(mouseX * 0.1);
+                ctx.scale(1 + mouseY * 0.05, 1 - mouseY * 0.05);
+                
+                // Breathing animation
+                const breathe = Math.sin(Date.now() * 0.001) * 0.02;
+                ctx.scale(1, 1 + breathe);
+                
+                // Draw the texture
+                ctx.globalAlpha = 1;
+                ctx.drawImage(
+                    textureImage, 
+                    -textureImage.width / 2, 
+                    -textureImage.height / 2
+                );
+                
+                // Simple eye blink overlay
+                if (Date.now() - lastBlinkTime > 3000 + Math.random() * 2000) {
+                    blinkValue = 1;
+                    lastBlinkTime = Date.now();
+                }
+                if (blinkValue > 0) {
+                    blinkValue -= 0.1;
+                    ctx.fillStyle = 'rgba(255, 218, 232, ' + blinkValue + ')';
+                    ctx.fillRect(-100, -150, 200, 50);
+                }
+                
+                // Simple mouth animation
+                if (isLipSyncing) {
+                    ctx.strokeStyle = '#FF6B9D';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(0, 100, 20, 0, Math.PI * mouthOpenValue);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+            
+            requestAnimationFrame(animate);
+        }
+        
+        // Test speak function
+        window.testSpeak = function() {
+            const text = 'Halo! Aku adalah avatar Live2D. Senang bertemu denganmu!';
+            speak(text);
+        };
+        
+        // Speak with lip sync
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                utterance.onstart = () => {
+                    isLipSyncing = true;
+                    document.getElementById('status').textContent = 'Speaking...';
+                    
+                    // Simulate lip sync
+                    const lipInterval = setInterval(() => {
+                        mouthOpenValue = 0.3 + Math.random() * 0.7;
+                    }, 100);
+                    
+                    utterance.onend = () => {
+                        isLipSyncing = false;
+                        mouthOpenValue = 0;
+                        clearInterval(lipInterval);
+                        document.getElementById('status').textContent = 'Ready';
+                    };
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+        
+        // Random motion (placeholder)
+        window.randomMotion = function() {
+            console.log('Playing random motion...');
+            document.getElementById('status').textContent = 'Motion: Random';
+            
+            // Simple shake animation
+            const originalTransform = ctx.getTransform();
+            let shakeTime = 0;
+            const shakeInterval = setInterval(() => {
+                shakeTime += 0.1;
+                if (shakeTime > 1) {
+                    clearInterval(shakeInterval);
+                    document.getElementById('status').textContent = 'Ready';
+                }
+            }, 50);
+        };
+        
+        // Change expression (placeholder)
+        window.changeExpression = function() {
+            console.log('Changing expression...');
+            document.getElementById('status').textContent = 'Expression: Happy';
+            blinkValue = 0.5;
+            setTimeout(() => {
+                document.getElementById('status').textContent = 'Ready';
+            }, 1000);
+        };
+        
+        // Listen for messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                console.log('Loading Live2D model from parent:', event.data.path);
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Load default model
+        loadLive2DModel('vtuber/1263521352/monika/monika.model.json');
+    </script>
+</body>
+</html>

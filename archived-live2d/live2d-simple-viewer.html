@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Simple Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #live2d {
+            cursor: move;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #ff5a8d;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .live2d-container {
+            width: 300px;
+            height: 400px;
+            position: relative;
+        }
+    </style>
+    <!-- Live2D Widget -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script>
+</head>
+<body>
+    <div id="loading">Loading Live2D Model...</div>
+    
+    <div class="info">
+        <h3>Bella Live2D Avatar</h3>
+        <p>Model: <span id="model-name">-</span></p>
+        <p>Status: <span id="status">Loading...</span></p>
+    </div>
+    
+    <div class="live2d-container">
+        <canvas id="live2d" width="300" height="400"></canvas>
+    </div>
+    
+    <div class="controls">
+        <button onclick="randomMotion()">Random Motion</button>
+        <button onclick="changeModel()">Change Model</button>
+        <button onclick="speak('Halo! Aku adalah avatar Live2D!')">Test Speak</button>
+    </div>
+
+    <script>
+        // Since the Live2D models in the vtuber folder have complex formats,
+        // let's create a simplified canvas-based viewer that properly assembles the parts
+        
+        const canvas = document.getElementById('live2d');
+        const ctx = canvas.getContext('2d');
+        let currentModelPath = '';
+        let modelParts = {
+            texture: null,
+            mocData: null,
+            physics: null
+        };
+        
+        // Model state
+        let modelState = {
+            x: 150,
+            y: 200,
+            scale: 1,
+            rotation: 0,
+            breathing: 0,
+            blinkTimer: 0,
+            mouthOpen: 0,
+            headX: 0,
+            headY: 0
+        };
+        
+        // Load Live2D Model manually
+        async function loadLive2DModel(modelPath) {
+            try {
+                currentModelPath = modelPath;
+                const modelName = modelPath.split('/').pop();
+                document.getElementById('model-name').textContent = modelName;
+                document.getElementById('status').textContent = 'Loading model components...';
+                
+                // Load model JSON
+                const response = await fetch(modelPath);
+                const modelJson = await response.json();
+                
+                // Extract directory path
+                const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
+                
+                // Load texture
+                let texturePath = modelJson.textures[0];
+                if (texturePath.includes('texture_00.png')) {
+                    // Fix the path
+                    texturePath = modelDir + modelName.replace('.model.json', '.2048/texture_00.png');
+                }
+                
+                console.log('Loading texture from:', texturePath);
+                
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = texturePath;
+                });
+                
+                modelParts.texture = img;
+                
+                // Load physics if available
+                if (modelJson.physics) {
+                    try {
+                        const physicsPath = modelDir + modelName.replace('.model.json', '.physics.json');
+                        const physicsResponse = await fetch(physicsPath);
+                        modelParts.physics = await physicsResponse.json();
+                    } catch (e) {
+                        console.log('No physics data found');
+                    }
+                }
+                
+                document.getElementById('status').textContent = 'Model loaded';
+                document.getElementById('loading').style.display = 'none';
+                
+                // Start animation loop
+                animate();
+                
+            } catch (error) {
+                console.error('Failed to load model:', error);
+                document.getElementById('status').textContent = 'Load failed';
+                document.getElementById('loading').textContent = 'Failed to load model: ' + error.message;
+            }
+        }
+        
+        // Animation loop
+        function animate() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Update model state
+            updateModelState();
+            
+            // Draw model
+            drawModel();
+            
+            requestAnimationFrame(animate);
+        }
+        
+        // Update model animations
+        function updateModelState() {
+            // Breathing
+            modelState.breathing = Math.sin(Date.now() * 0.001) * 0.02;
+            
+            // Blink
+            modelState.blinkTimer += 0.016;
+            if (modelState.blinkTimer > 3 + Math.random() * 2) {
+                modelState.blinkTimer = 0;
+            }
+            
+            // Smooth head movement
+            modelState.headX += (mouseX - modelState.headX) * 0.1;
+            modelState.headY += (mouseY - modelState.headY) * 0.1;
+        }
+        
+        // Draw the model with proper assembly
+        function drawModel() {
+            if (!modelParts.texture) return;
+            
+            ctx.save();
+            
+            // Position and scale
+            ctx.translate(modelState.x, modelState.y);
+            ctx.scale(modelState.scale, modelState.scale * (1 + modelState.breathing));
+            
+            // Head tracking rotation
+            ctx.rotate(modelState.headX * 0.1);
+            
+            // Draw texture as assembled character
+            // For Live2D, we need to map UV coordinates properly
+            // Since we don't have the .moc parser, we'll approximate
+            drawModelParts();
+            
+            ctx.restore();
+        }
+        
+        // Draw model parts in correct order
+        function drawModelParts() {
+            const tex = modelParts.texture;
+            
+            // For now, draw the whole texture scaled down
+            // In a real implementation, we'd parse the .moc file
+            ctx.globalAlpha = 1;
+            
+            // Draw main body/face
+            const scale = 0.3;
+            ctx.drawImage(
+                tex,
+                -tex.width * scale / 2,
+                -tex.height * scale / 2,
+                tex.width * scale,
+                tex.height * scale
+            );
+            
+            // Simple eye blink overlay
+            if (modelState.blinkTimer < 0.1) {
+                ctx.fillStyle = 'rgba(255, 218, 232, 0.8)';
+                ctx.fillRect(-50, -80, 100, 20);
+            }
+            
+            // Mouth animation
+            if (isLipSyncing) {
+                ctx.strokeStyle = '#FF6B9D';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 20, 10 * modelState.mouthOpen, 0, Math.PI);
+                ctx.stroke();
+            }
+        }
+        
+        // Mouse tracking
+        let mouseX = 0, mouseY = 0;
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = (e.clientX - rect.left) / rect.width * 2 - 1;
+            mouseY = (e.clientY - rect.top) / rect.height * 2 - 1;
+        });
+        
+        // Lip sync
+        let isLipSyncing = false;
+        
+        window.speak = function(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                utterance.onstart = () => {
+                    isLipSyncing = true;
+                    const lipInterval = setInterval(() => {
+                        modelState.mouthOpen = 0.5 + Math.random() * 0.5;
+                    }, 100);
+                    
+                    utterance.onend = () => {
+                        isLipSyncing = false;
+                        modelState.mouthOpen = 0;
+                        clearInterval(lipInterval);
+                    };
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        };
+        
+        window.randomMotion = function() {
+            // Simple shake animation
+            const originalX = modelState.x;
+            let shakeTime = 0;
+            const shakeInterval = setInterval(() => {
+                shakeTime += 0.1;
+                modelState.x = originalX + Math.sin(shakeTime * 10) * 5;
+                if (shakeTime > 1) {
+                    clearInterval(shakeInterval);
+                    modelState.x = originalX;
+                }
+            }, 16);
+        };
+        
+        window.changeModel = function() {
+            const models = [
+                'vtuber/1263521352/monika/monika.model.json',
+                'vtuber/1175870452/Kurama_Koharu/Kurama_Koharu.model.json',
+                'vtuber/1355968422/monika_talk/monika_talk.model.json'
+            ];
+            const currentIndex = models.indexOf(currentModelPath);
+            const nextIndex = (currentIndex + 1) % models.length;
+            loadLive2DModel(models[nextIndex]);
+        };
+        
+        // Listen for messages
+        window.addEventListener('message', (event) => {
+            console.log('Received message:', event.data);
+            if (event.data.type === 'loadModel' && event.data.path) {
+                console.log('Loading model from parent:', event.data.path);
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Wait for parent to send model path
+        document.getElementById('status').textContent = 'Waiting for model selection...';
+        
+        // If no message received after 2 seconds, load default
+        setTimeout(() => {
+            if (!currentModelPath) {
+                console.log('No model specified, loading default');
+                loadLive2DModel('vtuber/1263521352/monika/monika.model.json');
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

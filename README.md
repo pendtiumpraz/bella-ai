@@ -85,8 +85,16 @@ Buka browser dan akses: http://localhost:8081
 
 ### Mode Avatar vs Video
 - Klik tombol **"Switch to Avatar"** di kanan atas untuk beralih antara:
-  - **Avatar Mode**: Avatar 2D interaktif yang mengikuti mouse
+  - **Avatar Mode**: Avatar 2D/3D interaktif yang mengikuti mouse
   - **Video Mode**: Video pre-recorded Bella
+
+### Pilih Avatar
+1. Klik tombol **"Choose Avatar"** di kanan atas
+2. Pilih dari galeri:
+   - **VRM Models**: Model 3D profesional
+   - **Live2D Models**: Model 2D animasi (coming soon)
+3. Klik avatar yang diinginkan
+4. Klik **"Gunakan Avatar Ini"**
 
 ### Voice Chat
 1. Klik tombol **mikrofon** di bawah
@@ -124,8 +132,15 @@ Buka browser dan akses: http://localhost:8081
 2. Top up credit & generate key
 3. Masukkan di settings chat
 
-## 🎭 Fitur Avatar Live2D
+## 🎭 Fitur Avatar
 
+### Avatar Selection System
+- 🎨 **Choose Avatar** - Pilih dari 20+ model VTuber yang tersedia
+- 🎮 **Support VRM & Live2D** - Kompatibel dengan format 3D dan 2D
+- 🖼️ **Preview Gallery** - Lihat preview sebelum memilih
+- 🔄 **Instant Switch** - Ganti avatar tanpa reload halaman
+
+### Avatar Live2D (Default)
 Avatar Bella memiliki animasi natural:
 - 👀 **Mata mengikuti cursor mouse**
 - 😊 **Berkedip otomatis** setiap beberapa detik
@@ -137,6 +152,13 @@ Avatar Bella memiliki animasi natural:
   - 😮 Surprised: alis naik, mata membesar
 - 🫁 **Animasi breathing** yang halus
 - 🎯 **Kepala bergerak** mengikuti mouse
+
+### VRM 3D Models
+Model VTuber 3D yang tersedia:
+- **Galih Hoodie** series (4 variasi)
+- Full body animation support
+- Professional grade VRM models
+- Lip sync dengan speech synthesis
 
 ## 📁 Struktur Project
 

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas {
+            display: block;
+            cursor: move;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #ff5a8d;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+    <!-- Pixi.js for rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/5.3.3/pixi.min.js"></script>
+    <!-- Live2D SDK -->
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+</head>
+<body>
+    <div id="loading">Loading Live2D Model...</div>
+    
+    <div class="info">
+        <h3>Bella Live2D Avatar</h3>
+        <p>Model: <span id="model-name">-</span></p>
+        <p>Status: <span id="status">Loading...</span></p>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="randomMotion()">Random Motion</button>
+        <button onclick="randomExpression()">Random Expression</button>
+        <button onclick="speak('Halo! Aku Bella, senang bertemu denganmu!')">Test Speak</button>
+    </div>
+
+    <script>
+        // Initialize Pixi Application
+        const app = new PIXI.Application({
+            view: document.getElementById('canvas'),
+            autoStart: true,
+            transparent: true,
+            resizeTo: window
+        });
+
+        let currentModel = null;
+        let currentModelPath = '';
+        let modelDir = '';
+        let motions = {};
+        let expressions = {};
+        
+        // Mouse tracking
+        let mouseX = 0;
+        let mouseY = 0;
+        
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX - window.innerWidth / 2;
+            mouseY = e.clientY - window.innerHeight / 2;
+        });
+
+        // Simple Live2D Model Loader for Pixi
+        class Live2DModel extends PIXI.Container {
+            constructor(modelJson, modelPath) {
+                super();
+                this.modelJson = modelJson;
+                this.modelPath = modelPath;
+                this.modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
+                this.textures = [];
+                this.mouthOpenY = 0;
+                this.eyeBlink = 0;
+                this.headAngleX = 0;
+                this.headAngleY = 0;
+                this.bodyAngleX = 0;
+                this.lastBlinkTime = Date.now();
+                this.isBlinking = false;
+            }
+            
+            async load() {
+                try {
+                    // Load textures
+                    for (let i = 0; i < this.modelJson.textures.length; i++) {
+                        const texturePath = this.modelDir + this.modelJson.textures[i];
+                        const texture = await PIXI.Texture.from(texturePath);
+                        this.textures.push(texture);
+                    }
+                    
+                    // Create sprite with first texture as placeholder
+                    this.sprite = new PIXI.Sprite(this.textures[0]);
+                    this.sprite.anchor.set(0.5, 0.5);
+                    this.addChild(this.sprite);
+                    
+                    // Set scale
+                    const scale = Math.min(app.screen.width / 1024, app.screen.height / 1024) * 1.5;
+                    this.scale.set(scale, scale);
+                    
+                    // Position at center
+                    this.x = app.screen.width / 2;
+                    this.y = app.screen.height / 2 + 100;
+                    
+                    // Load motions if available
+                    if (this.modelJson.motions) {
+                        motions = this.modelJson.motions;
+                        console.log('Available motions:', Object.keys(motions));
+                    }
+                    
+                    // Load expressions if available
+                    if (this.modelJson.expressions) {
+                        for (const expr of this.modelJson.expressions) {
+                            const exprName = expr.name || expr.file.replace('.exp.json', '');
+                            expressions[exprName] = expr;
+                        }
+                        console.log('Available expressions:', Object.keys(expressions));
+                    }
+                    
+                    document.getElementById('status').textContent = 'Model loaded';
+                    document.getElementById('loading').style.display = 'none';
+                    
+                    return true;
+                } catch (error) {
+                    console.error('Failed to load model:', error);
+                    document.getElementById('status').textContent = 'Load failed';
+                    return false;
+                }
+            }
+            
+            update(deltaTime) {
+                if (!this.sprite) return;
+                
+                // Head tracking
+                this.headAngleX = mouseX * 0.00015;
+                this.headAngleY = -mouseY * 0.00015;
+                
+                // Apply head rotation
+                this.sprite.skew.set(this.headAngleY * 0.3, this.headAngleX * 0.3);
+                
+                // Breathing animation
+                const breathe = Math.sin(Date.now() * 0.001) * 0.01;
+                this.sprite.scale.y = 1 + breathe;
+                
+                // Auto blink
+                const now = Date.now();
+                if (!this.isBlinking && now - this.lastBlinkTime > 3000 + Math.random() * 2000) {
+                    this.isBlinking = true;
+                    this.lastBlinkTime = now;
+                }
+                
+                if (this.isBlinking) {
+                    this.eyeBlink = Math.min(this.eyeBlink + deltaTime * 0.02, 1);
+                    if (this.eyeBlink >= 1) {
+                        this.isBlinking = false;
+                        this.eyeBlink = 0;
+                    }
+                }
+                
+                // Mouth animation (simple)
+                if (isLipSyncing) {
+                    this.mouthOpenY = lipSyncValue;
+                } else {
+                    this.mouthOpenY *= 0.9; // Smoothly close mouth
+                }
+            }
+        }
+
+        // Load Live2D Model
+        async function loadLive2DModel(modelPath) {
+            try {
+                currentModelPath = modelPath;
+                modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
+                
+                // Update UI
+                document.getElementById('model-name').textContent = modelPath.split('/').pop();
+                document.getElementById('status').textContent = 'Loading model...';
+                document.getElementById('loading').style.display = 'block';
+                
+                // Remove previous model
+                if (currentModel) {
+                    app.stage.removeChild(currentModel);
+                    currentModel = null;
+                }
+                
+                // Load model JSON
+                const response = await fetch(modelPath);
+                const modelJson = await response.json();
+                
+                // Create and load new model
+                currentModel = new Live2DModel(modelJson, modelPath);
+                const success = await currentModel.load();
+                
+                if (success) {
+                    app.stage.addChild(currentModel);
+                    
+                    // Start update loop
+                    app.ticker.add((deltaTime) => {
+                        if (currentModel) {
+                            currentModel.update(deltaTime);
+                        }
+                    });
+                }
+                
+            } catch (error) {
+                console.error('Failed to load Live2D model:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+                document.getElementById('loading').textContent = 'Failed to load model!';
+            }
+        }
+
+        // Lip sync variables
+        let isLipSyncing = false;
+        let lipSyncValue = 0;
+
+        // Random motion
+        function randomMotion() {
+            const motionGroups = Object.keys(motions);
+            if (motionGroups.length > 0) {
+                const randomGroup = motionGroups[Math.floor(Math.random() * motionGroups.length)];
+                console.log('Playing motion:', randomGroup);
+                document.getElementById('status').textContent = 'Motion: ' + randomGroup;
+            }
+        }
+
+        // Random expression
+        function randomExpression() {
+            const expressionNames = Object.keys(expressions);
+            if (expressionNames.length > 0) {
+                const randomExpr = expressionNames[Math.floor(Math.random() * expressionNames.length)];
+                console.log('Setting expression:', randomExpr);
+                document.getElementById('status').textContent = 'Expression: ' + randomExpr;
+            }
+        }
+
+        // TTS with lip sync
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                utterance.onstart = () => {
+                    isLipSyncing = true;
+                    document.getElementById('status').textContent = 'Speaking...';
+                    
+                    // Simulate lip sync
+                    const lipInterval = setInterval(() => {
+                        lipSyncValue = 0.3 + Math.random() * 0.7;
+                    }, 100);
+                    
+                    utterance.onend = () => {
+                        isLipSyncing = false;
+                        lipSyncValue = 0;
+                        clearInterval(lipInterval);
+                        document.getElementById('status').textContent = 'Ready';
+                    };
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // Listen for messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                console.log('Loading Live2D model from parent:', event.data.path);
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            app.renderer.resize(window.innerWidth, window.innerHeight);
+            if (currentModel) {
+                currentModel.x = app.screen.width / 2;
+                currentModel.y = app.screen.height / 2 + 100;
+            }
+        });
+
+        // Load default model
+        loadLive2DModel('vtuber/1263521352/monika/monika.model.json');
+    </script>
+</body>
+</html>

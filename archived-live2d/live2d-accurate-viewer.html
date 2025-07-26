@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Accurate Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+            max-width: 350px;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+        }
+        .debug-panel {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+        }
+        .debug-panel.active { display: block; }
+    </style>
+    <!-- Pixi.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.3/pixi.min.js"></script>
+</head>
+<body>
+    <div class="info">
+        <h3>Live2D Accurate Positioning</h3>
+        <p>Model: <span id="model-name">Loading...</span></p>
+        <p>Status: <span id="status">Initializing...</span></p>
+        <p>Parts Loaded: <span id="parts-count">0</span></p>
+        <p><small>Use mouse to interact with the model</small></p>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="playMotion()">Play Motion</button>
+        <button onclick="changeExpression()">Change Expression</button>
+        <button onclick="speak('Halo! Namaku ' + currentModelName)">Test Speak</button>
+        <button onclick="toggleDebug()">Toggle Debug</button>
+        <button onclick="resetPositions()">Reset Positions</button>
+    </div>
+    
+    <div id="debug-panel" class="debug-panel">
+        <h4>Debug Info</h4>
+        <div id="debug-content"></div>
+    </div>
+
+    <script>
+        // Initialize PIXI Application
+        const app = new PIXI.Application({
+            view: document.getElementById('canvas'),
+            width: window.innerWidth,
+            height: window.innerHeight,
+            backgroundAlpha: 0,
+            resolution: window.devicePixelRatio || 1,
+            antialias: true
+        });
+
+        // Model state
+        let model = {
+            container: null,
+            meshes: {},
+            textures: [],
+            data: null,
+            partDefinitions: null
+        };
+
+        let currentModelName = "Model";
+        let debugMode = false;
+        let animationTime = 0;
+        let mousePos = { x: 0, y: 0 };
+        let lipSyncActive = false;
+        let lipSyncPower = 0;
+        
+        // Live2D Part definitions for common models
+        const PART_DEFINITIONS = {
+            default: [
+                // Hair back layer
+                { id: 'hair_back', uv: [0, 0, 1, 0.4], pos: [0, -200], size: [400, 320], z: 1 },
+                
+                // Body
+                { id: 'body', uv: [0, 0.4, 1, 1], pos: [0, 100], size: [300, 400], z: 2 },
+                
+                // Face base
+                { id: 'face_base', uv: [0.25, 0.1, 0.75, 0.5], pos: [0, -50], size: [200, 200], z: 3 },
+                
+                // Eyes region (will be split into left/right)
+                { id: 'eye_left', uv: [0.3, 0.2, 0.45, 0.3], pos: [-35, -70], size: [60, 40], z: 4 },
+                { id: 'eye_right', uv: [0.55, 0.2, 0.7, 0.3], pos: [35, -70], size: [60, 40], z: 4 },
+                
+                // Eyebrows
+                { id: 'eyebrow_left', uv: [0.3, 0.15, 0.45, 0.2], pos: [-35, -95], size: [60, 20], z: 5 },
+                { id: 'eyebrow_right', uv: [0.55, 0.15, 0.7, 0.2], pos: [35, -95], size: [60, 20], z: 5 },
+                
+                // Mouth
+                { id: 'mouth', uv: [0.42, 0.32, 0.58, 0.38], pos: [0, -20], size: [64, 32], z: 4 },
+                
+                // Hair side
+                { id: 'hair_side_left', uv: [0, 0.1, 0.2, 0.5], pos: [-120, -80], size: [80, 200], z: 6 },
+                { id: 'hair_side_right', uv: [0.8, 0.1, 1, 0.5], pos: [120, -80], size: [80, 200], z: 6 },
+                
+                // Hair front
+                { id: 'hair_front', uv: [0.1, 0, 0.9, 0.35], pos: [0, -150], size: [320, 200], z: 7 },
+                
+                // Arms (if visible)
+                { id: 'arm_left', uv: [0, 0.6, 0.3, 1], pos: [-100, 50], size: [120, 200], z: 1 },
+                { id: 'arm_right', uv: [0.7, 0.6, 1, 1], pos: [100, 50], size: [120, 200], z: 1 }
+            ],
+            
+            // Specific adjustments for Monika model
+            monika: [
+                { id: 'hair_back', uv: [0, 0, 0.5, 0.3], pos: [0, -180], size: [350, 250], z: 1 },
+                { id: 'body', uv: [0.2, 0.5, 0.8, 1], pos: [0, 120], size: [280, 350], z: 2 },
+                { id: 'face_base', uv: [0.3, 0.15, 0.7, 0.45], pos: [0, -60], size: [180, 180], z: 3 },
+                { id: 'eye_left', uv: [0.35, 0.22, 0.45, 0.28], pos: [-30, -75], size: [40, 30], z: 4 },
+                { id: 'eye_right', uv: [0.55, 0.22, 0.65, 0.28], pos: [30, -75], size: [40, 30], z: 4 },
+                { id: 'mouth', uv: [0.45, 0.32, 0.55, 0.36], pos: [0, -30], size: [40, 20], z: 4 },
+                { id: 'hair_front', uv: [0.5, 0, 1, 0.4], pos: [0, -160], size: [300, 220], z: 7 },
+                { id: 'bow', uv: [0.4, 0.05, 0.6, 0.15], pos: [0, -190], size: [80, 60], z: 8 }
+            ]
+        };
+        
+        // Track mouse position
+        app.view.addEventListener('mousemove', (e) => {
+            const rect = app.view.getBoundingClientRect();
+            mousePos.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mousePos.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        });
+
+        // Load Live2D model with accurate positioning
+        async function loadLive2DModel(modelPath) {
+            try {
+                updateStatus('Loading model data...');
+                
+                // Clean up previous model
+                if (model.container) {
+                    app.stage.removeChild(model.container);
+                    model.container.destroy({ children: true, texture: false });
+                }
+                
+                // Reset model state
+                model = {
+                    container: new PIXI.Container(),
+                    meshes: {},
+                    textures: [],
+                    data: null,
+                    partDefinitions: null
+                };
+                
+                // Convert absolute path to relative
+                if (modelPath.startsWith('/mnt/')) {
+                    modelPath = modelPath.replace('/mnt/d/AI/Bella/', '');
+                }
+                
+                // Extract model name
+                const pathParts = modelPath.split('/');
+                const modelFileName = pathParts[pathParts.length - 1];
+                currentModelName = modelFileName.replace('.model.json', '').replace('.model3.json', '');
+                document.getElementById('model-name').textContent = currentModelName;
+                
+                // Load model JSON
+                const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
+                const response = await fetch(modelPath);
+                if (!response.ok) {
+                    throw new Error(`Failed to load model: ${response.status}`);
+                }
+                model.data = await response.json();
+                
+                // Load textures
+                updateStatus('Loading textures...');
+                await loadTextures(model.data, modelDir);
+                
+                // Select part definitions based on model
+                if (currentModelName.toLowerCase().includes('monika')) {
+                    model.partDefinitions = PART_DEFINITIONS.monika;
+                } else {
+                    model.partDefinitions = PART_DEFINITIONS.default;
+                }
+                
+                // Build model with accurate positioning
+                updateStatus('Building model with accurate positions...');
+                buildAccurateModel();
+                
+                // Position model container
+                model.container.x = app.screen.width / 2;
+                model.container.y = app.screen.height * 0.65;
+                
+                // Add to stage
+                app.stage.addChild(model.container);
+                
+                // Start animation
+                app.ticker.remove(animate);
+                app.ticker.add(animate);
+                
+                updateStatus('Model loaded with accurate positioning');
+                document.getElementById('parts-count').textContent = Object.keys(model.meshes).length;
+                
+            } catch (error) {
+                console.error('Error loading model:', error);
+                updateStatus('Error: ' + error.message);
+            }
+        }
+        
+        // Load textures
+        async function loadTextures(modelData, modelDir) {
+            let textureList = [];
+            
+            if (modelData.FileReferences?.Textures) {
+                textureList = modelData.FileReferences.Textures;
+            } else if (modelData.textures) {
+                textureList = modelData.textures;
+            }
+            
+            model.textures = [];
+            
+            for (let texPath of textureList) {
+                // Fix absolute paths
+                if (texPath.includes(':/')) {
+                    const parts = texPath.split('/');
+                    texPath = parts.slice(-2).join('/');
+                }
+                
+                const fullPath = modelDir + texPath;
+                try {
+                    const texture = await PIXI.Assets.load(fullPath);
+                    model.textures.push(texture);
+                    console.log('Loaded texture:', fullPath, 'Size:', texture.width, 'x', texture.height);
+                } catch (error) {
+                    console.error('Failed to load texture:', fullPath);
+                }
+            }
+        }
+        
+        // Build model with accurate part positioning
+        function buildAccurateModel() {
+            if (!model.textures.length) {
+                throw new Error('No textures loaded');
+            }
+            
+            const baseTexture = model.textures[0];
+            const textureWidth = baseTexture.width;
+            const textureHeight = baseTexture.height;
+            
+            // Create mesh for each part with accurate UV mapping
+            model.partDefinitions.forEach(part => {
+                // Create geometry for the mesh
+                const geometry = new PIXI.Geometry()
+                    .addAttribute('aVertexPosition', 
+                        [-part.size[0]/2, -part.size[1]/2,
+                          part.size[0]/2, -part.size[1]/2,
+                          part.size[0]/2,  part.size[1]/2,
+                         -part.size[0]/2,  part.size[1]/2], 2)
+                    .addAttribute('aTextureCoord',
+                        [part.uv[0], part.uv[1],
+                         part.uv[2], part.uv[1],
+                         part.uv[2], part.uv[3],
+                         part.uv[0], part.uv[3]], 2)
+                    .addIndex([0, 1, 2, 0, 2, 3]);
+                
+                // Create mesh
+                const mesh = new PIXI.Mesh(geometry, new PIXI.MeshMaterial(baseTexture));
+                
+                // Set position
+                mesh.position.set(part.pos[0], part.pos[1]);
+                mesh.zIndex = part.z;
+                
+                // Store original values for animation
+                mesh._originalX = part.pos[0];
+                mesh._originalY = part.pos[1];
+                mesh._partId = part.id;
+                
+                model.meshes[part.id] = mesh;
+                model.container.addChild(mesh);
+            });
+            
+            // Sort by z-index
+            model.container.sortableChildren = true;
+            
+            // Apply overall scale
+            model.container.scale.set(1.2);
+            
+            updateDebugInfo();
+        }
+        
+        // Animation loop
+        function animate(delta) {
+            if (!model.container) return;
+            
+            animationTime += delta * 0.016;
+            
+            // Head/face tracking
+            if (model.meshes.face_base) {
+                model.meshes.face_base.rotation = mousePos.x * 0.08;
+                model.meshes.face_base.position.x = model.meshes.face_base._originalX + mousePos.x * 10;
+                model.meshes.face_base.position.y = model.meshes.face_base._originalY + mousePos.y * 5;
+            }
+            
+            // Eye tracking - eyes follow mouse
+            ['eye_left', 'eye_right'].forEach(eyeId => {
+                if (model.meshes[eyeId]) {
+                    model.meshes[eyeId].position.x = model.meshes[eyeId]._originalX + mousePos.x * 8;
+                    model.meshes[eyeId].position.y = model.meshes[eyeId]._originalY + mousePos.y * 4;
+                }
+            });
+            
+            // Eyebrow movement
+            ['eyebrow_left', 'eyebrow_right'].forEach(browId => {
+                if (model.meshes[browId]) {
+                    model.meshes[browId].position.y = model.meshes[browId]._originalY + Math.sin(animationTime * 0.5) * 2;
+                }
+            });
+            
+            // Hair physics - different layers move at different speeds
+            if (model.meshes.hair_back) {
+                model.meshes.hair_back.rotation = Math.sin(animationTime * 1.5) * 0.02 + mousePos.x * 0.03;
+            }
+            
+            if (model.meshes.hair_front) {
+                model.meshes.hair_front.rotation = Math.sin(animationTime * 2) * 0.025 + mousePos.x * 0.05;
+                model.meshes.hair_front.position.x = model.meshes.hair_front._originalX + Math.sin(animationTime * 1.8) * 3;
+            }
+            
+            ['hair_side_left', 'hair_side_right'].forEach((hairId, index) => {
+                if (model.meshes[hairId]) {
+                    const direction = hairId.includes('left') ? -1 : 1;
+                    model.meshes[hairId].rotation = Math.sin(animationTime * 2.2 + index) * 0.03 * direction + mousePos.x * 0.04;
+                }
+            });
+            
+            // Blinking animation
+            const blinkValue = Math.sin(animationTime * 0.5) + Math.sin(animationTime * 0.3);
+            if (blinkValue > 1.85) {
+                ['eye_left', 'eye_right'].forEach(eyeId => {
+                    if (model.meshes[eyeId]) {
+                        model.meshes[eyeId].scale.y = 0.1;
+                    }
+                });
+            } else {
+                ['eye_left', 'eye_right'].forEach(eyeId => {
+                    if (model.meshes[eyeId]) {
+                        model.meshes[eyeId].scale.y = 1;
+                    }
+                });
+            }
+            
+            // Mouth animation
+            if (model.meshes.mouth) {
+                if (lipSyncActive) {
+                    model.meshes.mouth.scale.y = 1 + lipSyncPower * 0.8;
+                    model.meshes.mouth.scale.x = 1 - lipSyncPower * 0.2;
+                } else {
+                    // Idle breathing
+                    model.meshes.mouth.scale.y = 1 + Math.sin(animationTime * 3) * 0.05;
+                }
+            }
+            
+            // Body breathing
+            if (model.meshes.body) {
+                model.meshes.body.scale.y = 1 + Math.sin(animationTime * 0.3) * 0.015;
+            }
+            
+            // Arm movement (if present)
+            if (model.meshes.arm_left) {
+                model.meshes.arm_left.rotation = Math.sin(animationTime * 0.4) * 0.05;
+            }
+            if (model.meshes.arm_right) {
+                model.meshes.arm_right.rotation = -Math.sin(animationTime * 0.4) * 0.05;
+            }
+            
+            // Overall slight sway
+            model.container.rotation = Math.sin(animationTime * 0.2) * 0.008;
+        }
+        
+        // Play motion animation
+        window.playMotion = function() {
+            let motionTime = 0;
+            const motionTicker = (delta) => {
+                motionTime += delta * 0.02;
+                
+                // Happy jump motion
+                model.container.scale.y = 1.2 * (1 + Math.sin(motionTime * 6) * 0.08);
+                model.container.position.y = (app.screen.height * 0.65) + Math.sin(motionTime * 6) * 20;
+                
+                // Enhanced hair movement
+                ['hair_front', 'hair_side_left', 'hair_side_right', 'hair_back'].forEach((hairId, i) => {
+                    if (model.meshes[hairId]) {
+                        model.meshes[hairId].rotation = Math.sin(motionTime * 8 + i * 0.5) * 0.2;
+                    }
+                });
+                
+                // Happy expression
+                if (model.meshes.mouth) {
+                    model.meshes.mouth.scale.x = 1.3;
+                    model.meshes.mouth.scale.y = 1.2;
+                }
+                
+                if (motionTime > Math.PI * 2) {
+                    app.ticker.remove(motionTicker);
+                    model.container.scale.y = 1.2;
+                    model.container.position.y = app.screen.height * 0.65;
+                    if (model.meshes.mouth) {
+                        model.meshes.mouth.scale.set(1);
+                    }
+                }
+            };
+            app.ticker.add(motionTicker);
+        };
+        
+        // Change expression
+        let currentExpression = 0;
+        window.changeExpression = function() {
+            currentExpression = (currentExpression + 1) % 4;
+            
+            switch(currentExpression) {
+                case 0: // Normal
+                    resetExpression();
+                    break;
+                case 1: // Happy
+                    if (model.meshes.mouth) {
+                        model.meshes.mouth.scale.x = 1.2;
+                        model.meshes.mouth.scale.y = 0.8;
+                    }
+                    ['eyebrow_left', 'eyebrow_right'].forEach(id => {
+                        if (model.meshes[id]) model.meshes[id].position.y = model.meshes[id]._originalY - 5;
+                    });
+                    break;
+                case 2: // Surprised
+                    ['eye_left', 'eye_right'].forEach(id => {
+                        if (model.meshes[id]) model.meshes[id].scale.set(1.2);
+                    });
+                    if (model.meshes.mouth) {
+                        model.meshes.mouth.scale.y = 1.5;
+                    }
+                    ['eyebrow_left', 'eyebrow_right'].forEach(id => {
+                        if (model.meshes[id]) model.meshes[id].position.y = model.meshes[id]._originalY - 10;
+                    });
+                    break;
+                case 3: // Sad
+                    ['eye_left', 'eye_right'].forEach(id => {
+                        if (model.meshes[id]) model.meshes[id].scale.y = 0.7;
+                    });
+                    if (model.meshes.mouth) {
+                        model.meshes.mouth.scale.y = 0.5;
+                        model.meshes.mouth.rotation = 0.1;
+                    }
+                    ['eyebrow_left', 'eyebrow_right'].forEach((id, i) => {
+                        if (model.meshes[id]) {
+                            model.meshes[id].position.y = model.meshes[id]._originalY + 3;
+                            model.meshes[id].rotation = i === 0 ? 0.1 : -0.1;
+                        }
+                    });
+                    break;
+            }
+        };
+        
+        function resetExpression() {
+            Object.values(model.meshes).forEach(mesh => {
+                mesh.scale.set(1);
+                mesh.rotation = 0;
+                if (mesh._originalX !== undefined) {
+                    mesh.position.x = mesh._originalX;
+                }
+                if (mesh._originalY !== undefined) {
+                    mesh.position.y = mesh._originalY;
+                }
+            });
+        }
+        
+        // Speak function with lip sync
+        window.speak = function(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                const voices = speechSynthesis.getVoices();
+                const indonesianVoice = voices.find(v => v.lang.startsWith('id'));
+                if (indonesianVoice) utterance.voice = indonesianVoice;
+                
+                utterance.onstart = () => {
+                    lipSyncActive = true;
+                    const lipInterval = setInterval(() => {
+                        lipSyncPower = Math.random() * 0.6 + 0.2;
+                    }, 80);
+                    
+                    utterance.onend = () => {
+                        lipSyncActive = false;
+                        lipSyncPower = 0;
+                        clearInterval(lipInterval);
+                    };
+                };
+                
+                speechSynthesis.speak(utterance);
+            }
+        };
+        
+        // Reset positions
+        window.resetPositions = function() {
+            resetExpression();
+            model.container.position.set(app.screen.width / 2, app.screen.height * 0.65);
+            model.container.scale.set(1.2);
+            model.container.rotation = 0;
+        };
+        
+        // Toggle debug mode
+        window.toggleDebug = function() {
+            debugMode = !debugMode;
+            const panel = document.getElementById('debug-panel');
+            panel.classList.toggle('active');
+            
+            if (debugMode) {
+                updateDebugInfo();
+            }
+        };
+        
+        // Update debug info
+        function updateDebugInfo() {
+            if (!debugMode) return;
+            
+            let debugHtml = '<table style="font-size: 11px;">';
+            debugHtml += '<tr><th>Part</th><th>Position</th><th>Size</th><th>UV</th></tr>';
+            
+            model.partDefinitions.forEach(part => {
+                const mesh = model.meshes[part.id];
+                if (mesh) {
+                    debugHtml += `<tr>
+                        <td>${part.id}</td>
+                        <td>${Math.round(mesh.x)},${Math.round(mesh.y)}</td>
+                        <td>${part.size[0]}x${part.size[1]}</td>
+                        <td>${part.uv.map(v => v.toFixed(2)).join(',')}</td>
+                    </tr>`;
+                }
+            });
+            
+            debugHtml += '</table>';
+            document.getElementById('debug-content').innerHTML = debugHtml;
+        }
+        
+        // Update status
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+        
+        // Handle messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Resize handler
+        window.addEventListener('resize', () => {
+            app.renderer.resize(window.innerWidth, window.innerHeight);
+            if (model.container) {
+                model.container.x = window.innerWidth / 2;
+                model.container.y = window.innerHeight * 0.65;
+            }
+        });
+        
+        // Initial state
+        updateStatus('Waiting for model selection...');
+    </script>
+</body>
+</html>

@@ -14,6 +14,8 @@ class ChatInterface {
         this.toggleButton = null;
         this.settingsPanel = null;
         this.isSettingsVisible = false;
+        this.assistantName = 'Bella'; // Default name
+        this.assistantAvatar = '💝'; // Default avatar
         
         this.init();
     }
@@ -35,9 +37,9 @@ class ChatInterface {
         this.chatContainer.innerHTML = `
             <div class="bella-chat-header">
                 <div class="bella-chat-title">
-                    <div class="bella-avatar">💝</div>
+                    <div class="bella-avatar">${this.assistantAvatar}</div>
                     <div class="bella-title-text">
-                        <h3>Bella</h3>
+                        <h3>${this.assistantName}</h3>
                         <span class="bella-status">Online</span>
                     </div>
                 </div>
@@ -53,7 +55,7 @@ class ChatInterface {
             <div class="bella-chat-messages"></div>
             <div class="bella-chat-input-container">
                 <div class="bella-input-wrapper">
-                    <input type="text" class="bella-message-input" placeholder="Ngobrol dengan Bella..." maxlength="500">
+                    <input type="text" class="bella-message-input" placeholder="Ngobrol dengan ${this.assistantName}..." maxlength="500">
                     <button class="bella-send-btn" title="Kirim">
                         <i class="fas fa-paper-plane"></i>
                     </button>
@@ -81,7 +83,7 @@ class ChatInterface {
             <div class="bella-toggle-icon">
                 <i class="fas fa-comments"></i>
             </div>
-            <div class="bella-toggle-text">Chat dengan Bella</div>
+            <div class="bella-toggle-text">Chat dengan ${this.assistantName}</div>
         `;
         this.toggleButton.title = 'Buka jendela chat';
         
@@ -223,7 +225,7 @@ class ChatInterface {
 
     // 添加欢迎消息
     addWelcomeMessage() {
-        this.addMessage('assistant', 'Halo! Saya Bella, partner AI kamu. Senang bertemu denganmu! Ada yang ingin dibicarakan?', true);
+        this.addMessage('assistant', `Halo! Saya ${this.assistantName}, partner AI kamu. Senang bertemu denganmu! Ada yang ingin dibicarakan?`, true);
     }
 
     // 切换聊天窗口显示/隐藏
@@ -320,7 +322,7 @@ class ChatInterface {
 
         messageElement.innerHTML = `
             <div class="bella-message-avatar">
-                ${role === 'user' ? '👤' : '💝'}
+                ${role === 'user' ? '👤' : this.assistantAvatar}
             </div>
             <div class="bella-message-content">
                 <div class="bella-message-text">${this.formatMessage(content)}</div>
@@ -436,6 +438,34 @@ class ChatInterface {
     // 检查聊天窗口是否可见
     getVisibility() {
         return this.isVisible;
+    }
+    
+    // Update assistant name and avatar
+    updateAssistant(name, avatar = '🤖') {
+        this.assistantName = name;
+        this.assistantAvatar = avatar;
+        
+        // Update header
+        const titleElement = this.chatContainer.querySelector('.bella-title-text h3');
+        if (titleElement) {
+            titleElement.textContent = name;
+        }
+        
+        const avatarElement = this.chatContainer.querySelector('.bella-chat-header .bella-avatar');
+        if (avatarElement) {
+            avatarElement.textContent = avatar;
+        }
+        
+        // Update input placeholder
+        if (this.messageInput) {
+            this.messageInput.placeholder = `Ngobrol dengan ${name}...`;
+        }
+        
+        // Update toggle button
+        const toggleText = this.toggleButton.querySelector('.bella-toggle-text');
+        if (toggleText) {
+            toggleText.textContent = `Chat dengan ${name}`;
+        }
     }
 
     // 设置回调函数

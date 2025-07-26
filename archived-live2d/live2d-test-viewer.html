@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Test Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+        }
+        #live2d-widget {
+            position: fixed;
+            bottom: 0;
+            right: 0;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Live2D Test dengan Model Online</h3>
+        <p>Status: <span id="status">Loading...</span></p>
+        <p style="color: #ff6b9d;">Model lokal butuh .moc parser yang kompleks</p>
+    </div>
+    
+    <div class="controls">
+        <button onclick="testLocalModel()">Test Local Model</button>
+        <button onclick="showModelInfo()">Show Model Info</button>
+    </div>
+    
+    <!-- Live2D Widget Container -->
+    <div id="live2d-widget">
+        <canvas id="live2dcanvas" width="300" height="400"></canvas>
+    </div>
+
+    <!-- Use online Live2D model for testing -->
+    <script src="https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/autoload.js"></script>
+    
+    <script>
+        // Initialize with online model first
+        document.getElementById('status').textContent = 'Loading online test model...';
+        
+        // After page loads, we'll have a working Live2D example
+        setTimeout(() => {
+            document.getElementById('status').textContent = 'Online model loaded - Local models need .moc parser';
+        }, 2000);
+        
+        function testLocalModel() {
+            alert('Model lokal membutuhkan:\n1. Parser untuk file .moc (binary rigging data)\n2. UV mapping yang benar dari texture\n3. Bone/mesh assembly data\n\nSolusi:\n- Gunakan VRM models (sudah berfungsi)\n- Atau konversi Live2D ke format yang lebih simple');
+        }
+        
+        function showModelInfo() {
+            const info = `
+Model Live2D di folder vtuber punya format:
+- .moc file: Binary rigging data (butuh parser khusus)
+- .model.json: Config dengan path absolut (sudah difix)
+- texture PNG: Sprite sheet dengan UV mapping
+- .physics.json: Animasi physics
+
+Tanpa .moc parser, texture akan terlihat berantakan karena:
+- Tidak ada info bagaimana parts disusun
+- Tidak ada UV coordinates untuk setiap part
+- Tidak ada bone/mesh hierarchy
+            `;
+            alert(info);
+        }
+    </script>
+</body>
+</html>

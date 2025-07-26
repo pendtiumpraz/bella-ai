@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D OML2D Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #1a1a2e;
+            font-family: Arial, sans-serif;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 1000;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 1000;
+        }
+        button {
+            margin: 0 5px;
+            padding: 10px 20px;
+            background: #ff6b9d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #ff5580;
+        }
+        #live2d-widget {
+            position: fixed !important;
+            left: 50% !important;
+            top: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            pointer-events: auto !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Live2D oh-my-live2d Viewer</h3>
+        <p>Model: <span id="model-name">Loading...</span></p>
+        <p>Status: <span id="status">Initializing...</span></p>
+        <p style="color: #4CAF50;">✓ Using oh-my-live2d</p>
+    </div>
+    
+    <div class="controls">
+        <button onclick="switchModel()">Switch Model</button>
+        <button onclick="takeScreenshot()">Screenshot</button>
+        <button onclick="speak('Halo! Aku senang bertemu denganmu!')">Test Speak</button>
+    </div>
+
+    <!-- oh-my-live2d - Simple Live2D library -->
+    <script src="https://unpkg.com/oh-my-live2d@latest/dist/index.min.js"></script>
+    
+    <script>
+        let oml2d = null;
+        let currentModelIndex = 0;
+        let modelList = [];
+        let currentModelPath = '';
+        
+        // Model configurations
+        const models = [
+            {
+                name: 'Monika',
+                path: 'vtuber/1263521352/monika/monika.model.json',
+                scale: 0.15,
+                position: [0, 0]
+            },
+            {
+                name: 'Nono',
+                path: 'vtuber/1443307414/nono/nono.model3.json',
+                scale: 0.15,
+                position: [0, 0]
+            },
+            {
+                name: 'Kurama Koharu',
+                path: 'vtuber/1175870452/Kurama_Koharu/Kurama_Koharu.model.json',
+                scale: 0.15,
+                position: [0, 0]
+            }
+        ];
+        
+        // Initialize oh-my-live2d
+        async function initOML2D() {
+            try {
+                document.getElementById('status').textContent = 'Initializing oh-my-live2d...';
+                
+                // Create oh-my-live2d instance
+                oml2d = OML2D.loadOml2d({
+                    models: [
+                        {
+                            path: models[0].path,
+                            scale: models[0].scale,
+                            position: models[0].position,
+                            stageStyle: {
+                                width: 400,
+                                height: 600
+                            }
+                        }
+                    ],
+                    tips: {
+                        idleTips: {
+                            wordTheDay: [
+                                'Halo! Senang bertemu denganmu!',
+                                'Apa kabar hari ini?',
+                                'Mari kita ngobrol!'
+                            ]
+                        }
+                    },
+                    statusBar: {
+                        disable: true
+                    },
+                    menus: {
+                        disable: false
+                    }
+                });
+                
+                document.getElementById('model-name').textContent = models[0].name;
+                document.getElementById('status').textContent = 'Model loaded successfully';
+                
+                // Store model list
+                modelList = models;
+                
+            } catch (error) {
+                console.error('OML2D initialization error:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+                
+                // Fallback to custom implementation
+                fallbackImplementation();
+            }
+        }
+        
+        // Fallback implementation
+        async function fallbackImplementation() {
+            document.getElementById('status').textContent = 'Using fallback viewer...';
+            
+            // Create a simple canvas-based viewer
+            const canvas = document.createElement('canvas');
+            canvas.id = 'fallback-canvas';
+            canvas.style.position = 'fixed';
+            canvas.style.left = '50%';
+            canvas.style.top = '50%';
+            canvas.style.transform = 'translate(-50%, -50%)';
+            canvas.width = 400;
+            canvas.height = 600;
+            document.body.appendChild(canvas);
+            
+            const ctx = canvas.getContext('2d');
+            
+            // Load texture
+            const modelPath = models[currentModelIndex].path;
+            const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
+            
+            try {
+                const response = await fetch(modelPath);
+                const modelData = await response.json();
+                
+                let texturePath = modelData.textures?.[0] || modelData.FileReferences?.Textures?.[0];
+                if (texturePath) {
+                    if (texturePath.includes(':/')) {
+                        const parts = texturePath.split('/');
+                        texturePath = parts.slice(-2).join('/');
+                    }
+                    
+                    const img = new Image();
+                    img.onload = () => {
+                        // Simple animation loop
+                        let time = 0;
+                        function animate() {
+                            time += 0.016;
+                            
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                            
+                            // Draw with simple animations
+                            ctx.save();
+                            ctx.translate(canvas.width/2, canvas.height/2);
+                            
+                            // Breathing effect
+                            const scale = 0.5 + Math.sin(time * 0.3) * 0.01;
+                            ctx.scale(scale, scale);
+                            
+                            // Slight rotation
+                            ctx.rotate(Math.sin(time * 0.2) * 0.02);
+                            
+                            ctx.drawImage(img, -img.width/2, -img.height/2);
+                            ctx.restore();
+                            
+                            requestAnimationFrame(animate);
+                        }
+                        animate();
+                        
+                        document.getElementById('status').textContent = 'Fallback viewer active';
+                    };
+                    img.src = modelDir + texturePath;
+                }
+            } catch (error) {
+                console.error('Fallback error:', error);
+                document.getElementById('status').textContent = 'All methods failed';
+            }
+        }
+        
+        // Load model using message
+        async function loadLive2DModel(modelPath) {
+            try {
+                // Find model config
+                const modelConfig = models.find(m => m.path === modelPath);
+                if (!modelConfig) {
+                    // Add new model
+                    modelConfig = {
+                        name: modelPath.split('/').pop(),
+                        path: modelPath,
+                        scale: 0.15,
+                        position: [0, 0]
+                    };
+                    models.push(modelConfig);
+                }
+                
+                currentModelPath = modelPath;
+                document.getElementById('model-name').textContent = modelConfig.name;
+                
+                // Try to load with oh-my-live2d
+                if (oml2d) {
+                    oml2d.loadModel(0, modelConfig.path);
+                } else {
+                    // Initialize with this model
+                    initOML2D();
+                }
+                
+            } catch (error) {
+                console.error('Error loading model:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        // Control functions
+        window.switchModel = function() {
+            currentModelIndex = (currentModelIndex + 1) % models.length;
+            const model = models[currentModelIndex];
+            
+            document.getElementById('model-name').textContent = model.name;
+            
+            if (oml2d) {
+                oml2d.loadModel(0, model.path);
+            }
+        };
+        
+        window.takeScreenshot = function() {
+            if (oml2d) {
+                oml2d.takeScreenshot();
+            }
+        };
+        
+        window.speak = function(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                const voices = speechSynthesis.getVoices();
+                const indonesianVoice = voices.find(v => v.lang.startsWith('id'));
+                if (indonesianVoice) utterance.voice = indonesianVoice;
+                
+                utterance.onstart = () => {
+                    document.getElementById('status').textContent = 'Speaking...';
+                    if (oml2d) {
+                        oml2d.tipsMessage(text, 3000, 10);
+                    }
+                };
+                
+                utterance.onend = () => {
+                    document.getElementById('status').textContent = 'Ready';
+                };
+                
+                speechSynthesis.speak(utterance);
+            }
+        };
+        
+        // Handle messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                let path = event.data.path;
+                if (path.startsWith('/mnt/')) {
+                    path = path.replace('/mnt/d/AI/Bella/', '');
+                }
+                loadLive2DModel(path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Initialize when ready
+        window.addEventListener('DOMContentLoaded', () => {
+            initOML2D();
+        });
+        
+        // Ensure voices are loaded
+        if ('speechSynthesis' in window) {
+            speechSynthesis.getVoices();
+            speechSynthesis.onvoiceschanged = () => {
+                speechSynthesis.getVoices();
+            };
+        }
+    </script>
+</body>
+</html>

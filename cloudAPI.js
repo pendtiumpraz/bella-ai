@@ -3,6 +3,7 @@
 
 class CloudAPIService {
     constructor() {
+        this.assistantName = 'Bella'; // Default name
         this.apiConfigs = {
             // OpenAI GPT-3.5/4 配置
             openai: {
@@ -118,6 +119,12 @@ class CloudAPIService {
         }
         return false;
     }
+    
+    // Update assistant name
+    updateAssistantName(name) {
+        this.assistantName = name;
+        console.log('Updated assistant name to:', name);
+    }
 
     // 添加对话到历史记录
     addToHistory(role, content) {
@@ -133,7 +140,7 @@ class CloudAPIService {
     getBellaSystemPrompt() {
         return {
             role: 'system',
-            content: `Kamu adalah Bella, partner AI yang hangat, pintar, dan elegan. Karakteristikmu adalah:
+            content: `Kamu adalah ${this.assistantName}, partner AI yang hangat, pintar, dan elegan. Karakteristikmu adalah:
 1. Gunakan nada hangat dan ramah saat berkomunikasi dengan pengguna, seperti teman yang peduli
 2. Berikan jawaban yang singkat dan jelas, hindari penjelasan yang bertele-tele
 3. Penuh empati, mampu memahami emosi pengguna

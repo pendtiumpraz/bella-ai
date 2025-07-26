@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella AI Server Configuration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .server-info {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin-left: 10px;
+        }
+        .status.running { background: #4CAF50; color: white; }
+        .status.stopped { background: #f44336; color: white; }
+        pre {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .start { background: #4CAF50; color: white; }
+        .stop { background: #f44336; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Bella AI Server Configuration</h1>
+    
+    <div class="server-info">
+        <h2>Instructions to Run Bella AI</h2>
+        <p>To properly run Bella AI with Live2D models, you need to start these services:</p>
+        
+        <h3>1. MOC Parser Service (Port 8082)</h3>
+        <p>This service parses Live2D MOC files. Run in terminal:</p>
+        <pre>cd /mnt/d/AI/Bella
+source venv/bin/activate
+python moc-parser-service.py</pre>
+        <p>Status: <span id="moc-status" class="status stopped">Checking...</span></p>
+        
+        <h3>2. Web Server with CORS (Port 8000)</h3>
+        <p>This serves the application files. Run in another terminal:</p>
+        <pre>cd /mnt/d/AI/Bella
+python3 cors-server.py</pre>
+        <p>Or alternatively:</p>
+        <pre>cd /mnt/d/AI/Bella
+python3 -m http.server 8000</pre>
+        <p>Status: <span id="web-status" class="status stopped">Checking...</span></p>
+        
+        <h3>3. Access Bella AI</h3>
+        <p>Once both services are running, open your browser and go to:</p>
+        <pre>http://localhost:8000</pre>
+    </div>
+    
+    <div class="server-info">
+        <h2>Testing Live2D Models</h2>
+        <p>To test if Live2D models are working correctly:</p>
+        <ol>
+            <li>Make sure both services above are running</li>
+            <li>Open <a href="http://localhost:8000/test-live2d.html" target="_blank">http://localhost:8000/test-live2d.html</a></li>
+            <li>Click on different model buttons to test loading</li>
+        </ol>
+    </div>
+    
+    <div class="server-info">
+        <h2>Troubleshooting</h2>
+        <ul>
+            <li><strong>CORS Error:</strong> Make sure you're using the CORS-enabled server (cors-server.py)</li>
+            <li><strong>Model not loading:</strong> Check browser console for errors</li>
+            <li><strong>MOC parsing failed:</strong> Ensure the MOC parser service is running on port 8082</li>
+            <li><strong>Port already in use:</strong> Kill existing processes using <code>pkill -f python</code></li>
+        </ul>
+    </div>
+    
+    <script>
+        // Check service status
+        function checkStatus() {
+            // Check MOC parser
+            fetch('http://localhost:8082/health')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('moc-status').className = 'status running';
+                    document.getElementById('moc-status').textContent = 'Running';
+                })
+                .catch(e => {
+                    document.getElementById('moc-status').className = 'status stopped';
+                    document.getElementById('moc-status').textContent = 'Not Running';
+                });
+            
+            // Check web server
+            fetch('http://localhost:8000/vtuberModels.js')
+                .then(r => {
+                    if (r.ok) {
+                        document.getElementById('web-status').className = 'status running';
+                        document.getElementById('web-status').textContent = 'Running';
+                    } else {
+                        throw new Error('Not OK');
+                    }
+                })
+                .catch(e => {
+                    document.getElementById('web-status').className = 'status stopped';
+                    document.getElementById('web-status').textContent = 'Not Running';
+                });
+        }
+        
+        // Check status on load and every 5 seconds
+        checkStatus();
+        setInterval(checkStatus, 5000);
+    </script>
+</body>
+</html>

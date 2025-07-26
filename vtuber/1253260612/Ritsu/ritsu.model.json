@@ -1,8 +1,0 @@
-{
-	"type": "Live2D Model Setting",
-	"name": "ritsu",
-	"model": "ritsu.moc",
-	"textures": [
-		"ritsu.1024/texture_00.png"
-	]
-}

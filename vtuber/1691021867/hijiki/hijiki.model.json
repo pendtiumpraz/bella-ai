@@ -1,8 +1,0 @@
-{
-	"type": "Live2D Model Setting",
-	"name": "hijiki",
-	"model": "hijiki.moc",
-	"textures": [
-		"hijiki.2048/texture_00.png"
-	]
-}

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bella Live2D SDK Implementation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas {
+            display: block;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+            max-width: 350px;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+        }
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 500px;
+            display: none;
+        }
+        .error.show { display: block; }
+        .error h3 { color: #ff6b9d; }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Live2D SDK Viewer</h3>
+        <p>Model: <span id="model-name">Loading...</span></p>
+        <p>Status: <span id="status">Initializing...</span></p>
+        <p>SDK: <span id="sdk-version">Checking...</span></p>
+    </div>
+    
+    <div class="loading" id="loading">
+        <h2>Loading Live2D SDK...</h2>
+        <p>Please wait...</p>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls" style="display: none;" id="controls">
+        <button onclick="playMotion()">Play Motion</button>
+        <button onclick="setExpression()">Change Expression</button>
+        <button onclick="speak('Halo! Aku senang bertemu denganmu!')">Test Speak</button>
+    </div>
+    
+    <div class="error" id="error">
+        <h3>Live2D SDK Not Found</h3>
+        <p>Untuk menampilkan Live2D models dengan benar, kamu perlu:</p>
+        <ol>
+            <li>Download Cubism SDK for Web dari <a href="https://www.live2d.com/en/download/cubism-sdk/" target="_blank" style="color: #ff6b9d;">live2d.com</a></li>
+            <li>Extract SDK ke folder <code>/mnt/d/AI/Bella/live2d-sdk/</code></li>
+            <li>Refresh halaman ini</li>
+        </ol>
+        <p><strong>Atau gunakan alternative viewer:</strong></p>
+        <button onclick="useAlternative()">Use Simple Viewer Instead</button>
+    </div>
+
+    <!-- Try multiple CDN sources for Live2D -->
+    <script src="https://s3-ap-northeast-1.amazonaws.com/cubism3.live2d.com/sdk/js/live2dcubismcore.js" onerror="handleSDKError()"></script>
+    <script src="https://cdn.jsdelivr.net/gh/Live2D/CubismWebFramework@4.0/src/live2dcubismframework.js" onerror="handleSDKError()"></script>
+    
+    <!-- Alternative: Local SDK if available -->
+    <script src="live2d-sdk/Core/live2dcubismcore.js" onerror="handleSDKError()"></script>
+    
+    <!-- Pixi.js as renderer -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+    
+    <!-- pixi-live2d-display: Community library that works with SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js"></script>
+    
+    <script>
+        let app = null;
+        let model = null;
+        let sdkAvailable = false;
+        let currentModelPath = null;
+        
+        // Check if SDK is available
+        function checkSDK() {
+            try {
+                // Check different possible SDK locations
+                if (typeof Live2DCubismCore !== 'undefined') {
+                    document.getElementById('sdk-version').textContent = 'Cubism Core (CDN)';
+                    sdkAvailable = true;
+                    return true;
+                }
+                
+                // Check for pixi-live2d-display
+                if (typeof PIXI !== 'undefined' && PIXI.live2d) {
+                    document.getElementById('sdk-version').textContent = 'pixi-live2d-display';
+                    sdkAvailable = true;
+                    return true;
+                }
+                
+                return false;
+            } catch (e) {
+                return false;
+            }
+        }
+        
+        // Initialize Live2D
+        async function initializeLive2D() {
+            try {
+                document.getElementById('status').textContent = 'Checking SDK...';
+                
+                // Wait a bit for scripts to load
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                if (!checkSDK()) {
+                    throw new Error('SDK not available');
+                }
+                
+                // Initialize Pixi
+                app = new PIXI.Application({
+                    view: document.getElementById('canvas'),
+                    width: window.innerWidth,
+                    height: window.innerHeight,
+                    backgroundAlpha: 0,
+                    resolution: window.devicePixelRatio || 1
+                });
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('controls').style.display = 'block';
+                document.getElementById('status').textContent = 'Ready';
+                
+                // Try to initialize Live2D if using pixi-live2d-display
+                if (PIXI.live2d) {
+                    await PIXI.live2d.Live2DModel.registerTicker(PIXI.Ticker);
+                }
+                
+            } catch (error) {
+                console.error('SDK initialization failed:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').classList.add('show');
+            }
+        }
+        
+        // Load Live2D Model using SDK
+        async function loadLive2DModel(modelPath) {
+            try {
+                document.getElementById('status').textContent = 'Loading model...';
+                
+                // Clean path
+                if (modelPath.startsWith('/mnt/')) {
+                    modelPath = modelPath.replace('/mnt/d/AI/Bella/', '');
+                }
+                
+                currentModelPath = modelPath;
+                const modelName = modelPath.split('/').pop();
+                document.getElementById('model-name').textContent = modelName;
+                
+                // Remove previous model
+                if (model) {
+                    app.stage.removeChild(model);
+                    model.destroy();
+                }
+                
+                // Try using pixi-live2d-display
+                if (PIXI.live2d) {
+                    model = await PIXI.live2d.Live2DModel.from(modelPath);
+                    
+                    // Scale and position
+                    model.scale.set(0.3);
+                    model.x = app.screen.width / 2;
+                    model.y = app.screen.height / 2;
+                    
+                    // Add to stage
+                    app.stage.addChild(model);
+                    
+                    // Setup interaction
+                    model.on('hit', (hitAreas) => {
+                        console.log('Hit areas:', hitAreas);
+                    });
+                    
+                    document.getElementById('status').textContent = 'Model loaded successfully';
+                } else {
+                    throw new Error('pixi-live2d-display not available');
+                }
+                
+            } catch (error) {
+                console.error('Failed to load model:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+                
+                // Try alternative method
+                tryAlternativeLoad();
+            }
+        }
+        
+        // Alternative loading method
+        async function tryAlternativeLoad() {
+            try {
+                document.getElementById('status').textContent = 'Trying alternative method...';
+                
+                // Load model JSON directly
+                const response = await fetch(currentModelPath);
+                const modelJson = await response.json();
+                
+                console.log('Model JSON:', modelJson);
+                
+                // Create a simple display
+                const modelDir = currentModelPath.substring(0, currentModelPath.lastIndexOf('/') + 1);
+                
+                // Fix texture paths
+                let texturePath = modelJson.textures?.[0] || modelJson.FileReferences?.Textures?.[0];
+                if (texturePath) {
+                    if (texturePath.includes(':/')) {
+                        const parts = texturePath.split('/');
+                        texturePath = parts.slice(-2).join('/');
+                    }
+                    
+                    const texture = await PIXI.Texture.from(modelDir + texturePath);
+                    const sprite = new PIXI.Sprite(texture);
+                    
+                    sprite.anchor.set(0.5);
+                    sprite.x = app.screen.width / 2;
+                    sprite.y = app.screen.height / 2;
+                    sprite.scale.set(0.5);
+                    
+                    app.stage.addChild(sprite);
+                    
+                    document.getElementById('status').textContent = 'Loaded as static image (SDK needed for animation)';
+                }
+                
+            } catch (error) {
+                console.error('Alternative load failed:', error);
+                document.getElementById('status').textContent = 'Failed to load model';
+            }
+        }
+        
+        // Handle SDK loading errors
+        function handleSDKError() {
+            console.warn('SDK script failed to load');
+        }
+        
+        // Button functions
+        window.playMotion = function() {
+            if (model && model.motion) {
+                model.motion('TapBody');
+            }
+        };
+        
+        window.setExpression = function() {
+            if (model && model.expression) {
+                const expressions = model.internalModel.settings.expressions;
+                if (expressions) {
+                    const randomExp = expressions[Math.floor(Math.random() * expressions.length)];
+                    model.expression(randomExp.name);
+                }
+            }
+        };
+        
+        window.speak = function(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                if (model) {
+                    utterance.onstart = () => {
+                        if (model.internalModel) {
+                            model.internalModel.motionManager.startMotion('Idle', 0);
+                        }
+                    };
+                }
+                
+                speechSynthesis.speak(utterance);
+            }
+        };
+        
+        window.useAlternative = function() {
+            window.parent.postMessage({
+                type: 'useAlternativeViewer'
+            }, '*');
+        };
+        
+        // Handle messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Resize handler
+        window.addEventListener('resize', () => {
+            if (app) {
+                app.renderer.resize(window.innerWidth, window.innerHeight);
+                if (model) {
+                    model.x = window.innerWidth / 2;
+                    model.y = window.innerHeight / 2;
+                }
+            }
+        });
+        
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            initializeLive2D();
+        });
+    </script>
+</body>
+</html>

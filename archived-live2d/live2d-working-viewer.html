@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D Working Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas {
+            display: block;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 15px;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 15px 25px;
+            border-radius: 25px;
+            color: white;
+        }
+        button {
+            margin: 0 5px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+        }
+    </style>
+    <!-- Pixi.js for rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/5.3.12/pixi.min.js"></script>
+</head>
+<body>
+    <div class="info">
+        <h3>Live2D Model</h3>
+        <p>Model: <span id="model-name">Loading...</span></p>
+        <p>Status: <span id="status">Initializing...</span></p>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="playMotion()">Play Motion</button>
+        <button onclick="speak('Halo! Aku adalah avatar Live2D!')">Test Speak</button>
+    </div>
+
+    <script>
+        // Initialize PIXI
+        const app = new PIXI.Application({
+            view: document.getElementById('canvas'),
+            width: window.innerWidth,
+            height: window.innerHeight,
+            transparent: true,
+        });
+
+        let modelContainer = null;
+        let modelParts = {};
+        let modelTexture = null;
+        let parameters = {};
+        
+        // Animation state
+        let time = 0;
+        let mouseX = 0, mouseY = 0;
+        let isLipSyncing = false;
+        let lipSyncValue = 0;
+        
+        // Track mouse
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        // Load model function
+        async function loadLive2DModel(modelPath) {
+            try {
+                document.getElementById('model-name').textContent = modelPath.split('/').pop();
+                document.getElementById('status').textContent = 'Loading model...';
+                
+                // Clear previous model
+                if (modelContainer) {
+                    app.stage.removeChild(modelContainer);
+                }
+                
+                // Create container
+                modelContainer = new PIXI.Container();
+                modelContainer.x = app.screen.width / 2;
+                modelContainer.y = app.screen.height / 2 + 100;
+                
+                // Load model JSON
+                const modelDir = modelPath.substring(0, modelPath.lastIndexOf('/') + 1);
+                const response = await fetch(modelPath);
+                const modelJson = await response.json();
+                
+                // Fix texture path
+                let texturePath = modelJson.textures[0];
+                if (texturePath.includes('D:/')) {
+                    const parts = modelPath.split('/');
+                    const modelName = parts[parts.length - 1].replace('.model.json', '');
+                    texturePath = modelDir + modelName + '.2048/texture_00.png';
+                }
+                
+                // Load texture
+                modelTexture = await PIXI.Texture.from(texturePath);
+                
+                // Create model parts based on common Live2D structure
+                createModelParts();
+                
+                // Add to stage
+                app.stage.addChild(modelContainer);
+                
+                // Start animation
+                app.ticker.add(updateAnimation);
+                
+                document.getElementById('status').textContent = 'Model loaded';
+                
+            } catch (error) {
+                console.error('Error loading model:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        // Create model parts with better positioning
+        function createModelParts() {
+            // Clear existing parts
+            modelContainer.removeChildren();
+            
+            // Define parts with better UV mapping estimates
+            const partDefinitions = [
+                // Background/Body base
+                { 
+                    name: 'body_base', 
+                    x: 0, y: 50, 
+                    width: 300, height: 400,
+                    uvX: 0, uvY: 0.5, uvW: 1, uvH: 0.5,
+                    zIndex: 0
+                },
+                
+                // Head/Face
+                { 
+                    name: 'head', 
+                    x: 0, y: -100, 
+                    width: 200, height: 200,
+                    uvX: 0.2, uvY: 0, uvW: 0.6, uvH: 0.4,
+                    zIndex: 10
+                },
+                
+                // Hair Back
+                { 
+                    name: 'hair_back', 
+                    x: 0, y: -120, 
+                    width: 250, height: 300,
+                    uvX: 0, uvY: 0, uvW: 0.5, uvH: 0.5,
+                    zIndex: 5
+                },
+                
+                // Eyes
+                { 
+                    name: 'eye_left', 
+                    x: -30, y: -100, 
+                    width: 40, height: 30,
+                    uvX: 0.35, uvY: 0.15, uvW: 0.1, uvH: 0.08,
+                    zIndex: 15
+                },
+                { 
+                    name: 'eye_right', 
+                    x: 30, y: -100, 
+                    width: 40, height: 30,
+                    uvX: 0.55, uvY: 0.15, uvW: 0.1, uvH: 0.08,
+                    zIndex: 15
+                },
+                
+                // Mouth
+                { 
+                    name: 'mouth', 
+                    x: 0, y: -60, 
+                    width: 50, height: 25,
+                    uvX: 0.45, uvY: 0.25, uvW: 0.1, uvH: 0.05,
+                    zIndex: 15
+                },
+                
+                // Hair Front
+                { 
+                    name: 'hair_front', 
+                    x: 0, y: -140, 
+                    width: 220, height: 250,
+                    uvX: 0.5, uvY: 0, uvW: 0.5, uvH: 0.4,
+                    zIndex: 20
+                }
+            ];
+            
+            // Sort by z-index
+            partDefinitions.sort((a, b) => a.zIndex - b.zIndex);
+            
+            // Create sprites for each part
+            partDefinitions.forEach(part => {
+                const sprite = new PIXI.Sprite(modelTexture);
+                
+                // Set anchor to center
+                sprite.anchor.set(0.5);
+                
+                // Position
+                sprite.x = part.x;
+                sprite.y = part.y;
+                
+                // Size
+                sprite.width = part.width;
+                sprite.height = part.height;
+                
+                // Store reference
+                modelParts[part.name] = sprite;
+                
+                // Add to container
+                modelContainer.addChild(sprite);
+            });
+            
+            // Set overall scale
+            modelContainer.scale.set(1.2);
+        }
+        
+        // Update animation
+        function updateAnimation(delta) {
+            if (!modelContainer) return;
+            
+            time += delta * 0.01;
+            
+            // Head tracking
+            if (modelParts.head) {
+                modelParts.head.rotation = mouseX * 0.1;
+                modelParts.head.skew.set(mouseY * 0.05, 0);
+            }
+            
+            // Hair physics
+            ['hair_front', 'hair_back'].forEach(hairName => {
+                if (modelParts[hairName]) {
+                    modelParts[hairName].rotation = Math.sin(time * 2) * 0.02 + mouseX * 0.05;
+                    modelParts[hairName].skew.set(Math.cos(time * 1.5) * 0.01, 0);
+                }
+            });
+            
+            // Eye blinking
+            const blinkCycle = Math.sin(time * 0.5) + Math.sin(time * 0.3);
+            const shouldBlink = blinkCycle > 1.8;
+            
+            ['eye_left', 'eye_right'].forEach(eyeName => {
+                if (modelParts[eyeName]) {
+                    modelParts[eyeName].scale.y = shouldBlink ? 0.1 : 1;
+                }
+            });
+            
+            // Mouth animation
+            if (modelParts.mouth) {
+                if (isLipSyncing) {
+                    modelParts.mouth.scale.y = 1 + lipSyncValue * 0.5;
+                    modelParts.mouth.y = -60 + lipSyncValue * 5;
+                } else {
+                    modelParts.mouth.scale.y = 1;
+                    modelParts.mouth.y = -60;
+                }
+            }
+            
+            // Breathing
+            const breathing = Math.sin(time * 0.3) * 0.02;
+            modelContainer.scale.y = 1.2 * (1 + breathing);
+            
+            // Body sway
+            modelContainer.rotation = Math.sin(time * 0.2) * 0.01;
+        }
+        
+        // Play motion
+        window.playMotion = function() {
+            // Simple motion animation
+            const originalX = modelContainer.x;
+            let motionTime = 0;
+            
+            const motionTicker = () => {
+                motionTime += 0.1;
+                modelContainer.x = originalX + Math.sin(motionTime * 5) * 20;
+                
+                if (motionTime > Math.PI * 2) {
+                    app.ticker.remove(motionTicker);
+                    modelContainer.x = originalX;
+                }
+            };
+            
+            app.ticker.add(motionTicker);
+        };
+        
+        // Speak function
+        window.speak = function(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                utterance.onstart = () => {
+                    isLipSyncing = true;
+                    const lipInterval = setInterval(() => {
+                        lipSyncValue = Math.random();
+                    }, 100);
+                    
+                    utterance.onend = () => {
+                        isLipSyncing = false;
+                        lipSyncValue = 0;
+                        clearInterval(lipInterval);
+                    };
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        };
+        
+        // Handle messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel' && event.data.path) {
+                loadLive2DModel(event.data.path);
+            } else if (event.data.type === 'speak' && event.data.text) {
+                speak(event.data.text);
+            }
+        });
+        
+        // Resize handler
+        window.addEventListener('resize', () => {
+            app.renderer.resize(window.innerWidth, window.innerHeight);
+            if (modelContainer) {
+                modelContainer.x = window.innerWidth / 2;
+                modelContainer.y = window.innerHeight / 2 + 100;
+            }
+        });
+        
+        // Initial status
+        document.getElementById('status').textContent = 'Waiting for model selection...';
+    </script>
+</body>
+</html>

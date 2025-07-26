@@ -1,6 +1,7 @@
 // 导入BellaAI核心模块
 import { BellaAI } from './core.js';
 import { ChatInterface } from './chatInterface.js';
+import { VideoManager } from './videoManager.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
     // --- Get all necessary DOM elements first ---
@@ -14,6 +15,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     // --- AI Core Initialization ---
     let bellaAI;
     let chatInterface;
+    let videoManager;
+    
+    // Initialize video emotion manager
+    videoManager = new VideoManager();
     
     // 首先初始化聊天界面（不依赖AI）
     try {
@@ -50,6 +55,29 @@ document.addEventListener('DOMContentLoaded', async function() {
                     const response = await bellaAI.think(message);
                     chatInterface.hideTypingIndicator();
                     chatInterface.addMessage('assistant', response);
+                    
+                    // Speak the response
+                    if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance(response);
+                        utterance.lang = 'id-ID';
+                        utterance.rate = 0.9;
+                        utterance.pitch = 1.2;
+                        utterance.volume = 0.8;
+                        
+                        const voices = window.speechSynthesis.getVoices();
+                        const indonesianVoice = voices.find(voice => voice.lang.startsWith('id'));
+                        if (indonesianVoice) {
+                            utterance.voice = indonesianVoice;
+                        }
+                        
+                        window.speechSynthesis.speak(utterance);
+                    }
+                    
+                    // Update video emotion
+                    const emotionChange = videoManager.switchToEmotionVideo(response);
+                    if (emotionChange) {
+                        console.log('Bella emotion changed to:', emotionChange.emotion);
+                    }
                 } catch (error) {
                     console.error('Error pemrosesan AI:', error);
                     chatInterface.hideTypingIndicator();
@@ -92,6 +120,29 @@ document.addEventListener('DOMContentLoaded', async function() {
                     const response = await bellaAI.think(message);
                     chatInterface.hideTypingIndicator();
                     chatInterface.addMessage('assistant', response);
+                    
+                    // Speak the response
+                    if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance(response);
+                        utterance.lang = 'id-ID';
+                        utterance.rate = 0.9;
+                        utterance.pitch = 1.2;
+                        utterance.volume = 0.8;
+                        
+                        const voices = window.speechSynthesis.getVoices();
+                        const indonesianVoice = voices.find(voice => voice.lang.startsWith('id'));
+                        if (indonesianVoice) {
+                            utterance.voice = indonesianVoice;
+                        }
+                        
+                        window.speechSynthesis.speak(utterance);
+                    }
+                    
+                    // Update video emotion
+                    const emotionChange = videoManager.switchToEmotionVideo(response);
+                    if (emotionChange) {
+                        console.log('Bella emotion changed to:', emotionChange.emotion);
+                    }
                 } catch (error) {
                     console.error('Error pemrosesan AI:', error);
                     chatInterface.hideTypingIndicator();
@@ -148,13 +199,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     ];
 
     // --- 视频交叉淡入淡出播放功能 ---
-    function switchVideo() {
+    function switchVideo(forcedVideoSrc = null) {
         // 1. 选择下一个视频
         const currentVideoSrc = activeVideo.querySelector('source').getAttribute('src');
-        let nextVideoSrc = currentVideoSrc;
-        while (nextVideoSrc === currentVideoSrc) {
-            const randomIndex = Math.floor(Math.random() * videoList.length);
-            nextVideoSrc = videoList[randomIndex];
+        let nextVideoSrc;
+        
+        if (forcedVideoSrc) {
+            nextVideoSrc = forcedVideoSrc;
+        } else {
+            nextVideoSrc = currentVideoSrc;
+            while (nextVideoSrc === currentVideoSrc) {
+                const randomIndex = Math.floor(Math.random() * videoList.length);
+                nextVideoSrc = videoList[randomIndex];
+            }
         }
 
         // 2. 设置不活动的 video 元素的 source
@@ -185,6 +242,13 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // 初始启动
     activeVideo.addEventListener('ended', switchVideo, { once: true });
+    
+    // Listen for emotion-based video changes
+    window.addEventListener('bella-emotion-change', (event) => {
+        const { emotion, video } = event.detail;
+        console.log('Switching to emotion video:', emotion, video);
+        switchVideo(video);
+    });
     
     // 聊天控制按钮事件
     const chatToggleBtn = document.getElementById('chat-toggle-btn');
@@ -296,13 +360,29 @@ document.addEventListener('DOMContentLoaded', async function() {
                         chatInterface.addMessage('assistant', response);
                     }
 
-                    // TTS功能暂时禁用，将在下一阶段激活
-                    // TODO: 激活语音合成功能
-                    // const audioData = await bellaAI.speak(response);
-                    // const blob = new Blob([audioData], { type: 'audio/wav' });
-                    // const audioUrl = URL.createObjectURL(blob);
-                    // const audio = new Audio(audioUrl);
-                    // audio.play();
+                    // Use browser TTS untuk suara Bella
+                    if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance(response);
+                        utterance.lang = 'id-ID'; // Bahasa Indonesia
+                        utterance.rate = 0.9; // Sedikit lebih lambat
+                        utterance.pitch = 1.2; // Sedikit lebih tinggi untuk suara feminine
+                        utterance.volume = 0.8;
+                        
+                        // Pilih voice Indonesia jika ada
+                        const voices = window.speechSynthesis.getVoices();
+                        const indonesianVoice = voices.find(voice => voice.lang.startsWith('id'));
+                        if (indonesianVoice) {
+                            utterance.voice = indonesianVoice;
+                        }
+                        
+                        window.speechSynthesis.speak(utterance);
+                    }
+                    
+                    // Switch video based on emotion
+                    const emotionChange = videoManager.switchToEmotionVideo(response);
+                    if (emotionChange) {
+                        console.log('Bella emotion changed to:', emotionChange.emotion);
+                    }
 
                 } catch (error) {
                     console.error('Bella AI processing error:', error);

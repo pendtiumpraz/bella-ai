@@ -187,6 +187,15 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     let activeVideo = video1;
     let inactiveVideo = video2;
+    
+    // Force play video on load
+    activeVideo.play().catch(error => {
+        console.error("Error playing initial video:", error);
+        // Try to play on user interaction
+        document.addEventListener('click', () => {
+            activeVideo.play();
+        }, { once: true });
+    });
 
     // 视频列表
     const videoList = [
@@ -235,13 +244,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             // 6. 更新角色
             [activeVideo, inactiveVideo] = [inactiveVideo, activeVideo];
 
-            // 为新的 activeVideo 绑定 ended 事件
-            activeVideo.addEventListener('ended', switchVideo, { once: true });
+            // Video sudah loop, tidak perlu event ended
+            // activeVideo.addEventListener('ended', switchVideo, { once: true });
         }, { once: true }); // 使用 { once: true } 确保事件只被处理一次
     }
 
-    // 初始启动
-    activeVideo.addEventListener('ended', switchVideo, { once: true });
+    // Video akan loop terus menerus, tidak perlu event ended
     
     // Listen for emotion-based video changes
     window.addEventListener('bella-emotion-change', (event) => {

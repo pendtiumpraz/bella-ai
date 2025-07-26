@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bella Live2D Avatar</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        
+        #canvas {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        
+        .avatar-container {
+            position: relative;
+            width: 800px;
+            height: 900px;
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        .controls button {
+            margin: 0 5px;
+            padding: 5px 15px;
+            border: none;
+            border-radius: 15px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+        }
+        
+        .controls button:hover {
+            background: #ff5a8c;
+        }
+        
+        .emotion-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="avatar-container">
+        <canvas id="canvas"></canvas>
+        
+        <div class="emotion-indicator">
+            Emotion: <span id="current-emotion">Neutral</span>
+        </div>
+        
+        <div class="controls">
+            <button onclick="setEmotion('happy')">😊 Happy</button>
+            <button onclick="setEmotion('sad')">😢 Sad</button>
+            <button onclick="setEmotion('angry')">😠 Angry</button>
+            <button onclick="setEmotion('surprised')">😮 Surprised</button>
+            <button onclick="speak()">🎤 Speak</button>
+        </div>
+    </div>
+
+    <!-- Live2D SDK -->
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+    
+    <script>
+        // Placeholder for Live2D implementation
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        canvas.width = 800;
+        canvas.height = 900;
+        
+        // For now, we'll create a simple animated avatar placeholder
+        class SimpleAvatar {
+            constructor() {
+                this.x = canvas.width / 2;
+                this.y = canvas.height / 2;
+                this.eyeOpenness = 1;
+                this.blinkTimer = 0;
+                this.headRotation = 0;
+                this.mouthOpenness = 0;
+                this.emotion = 'neutral';
+                this.speaking = false;
+            }
+            
+            update() {
+                // Blinking animation
+                this.blinkTimer++;
+                if (this.blinkTimer > 200) {
+                    this.eyeOpenness = 0;
+                    if (this.blinkTimer > 210) {
+                        this.eyeOpenness = 1;
+                        this.blinkTimer = Math.random() * 100;
+                    }
+                }
+                
+                // Head movement following mouse
+                if (window.mouseX) {
+                    const targetRotation = (window.mouseX - canvas.width / 2) / canvas.width * 0.3;
+                    this.headRotation += (targetRotation - this.headRotation) * 0.1;
+                }
+                
+                // Mouth animation when speaking
+                if (this.speaking) {
+                    this.mouthOpenness = 0.3 + Math.sin(Date.now() * 0.01) * 0.2;
+                } else {
+                    this.mouthOpenness *= 0.9;
+                }
+            }
+            
+            draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.headRotation);
+                
+                // Face
+                ctx.fillStyle = '#fdbcb4';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 150, 180, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Eyes
+                const eyeY = -30;
+                const eyeSpacing = 50;
+                
+                // Left eye
+                ctx.fillStyle = '#333';
+                ctx.beginPath();
+                ctx.ellipse(-eyeSpacing, eyeY, 25, 35 * this.eyeOpenness, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Right eye
+                ctx.beginPath();
+                ctx.ellipse(eyeSpacing, eyeY, 25, 35 * this.eyeOpenness, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Eye sparkles
+                if (this.eyeOpenness > 0.5) {
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(-eyeSpacing + 10, eyeY - 10, 5, 0, Math.PI * 2);
+                    ctx.arc(eyeSpacing + 10, eyeY - 10, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // Mouth
+                ctx.strokeStyle = '#d66';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                
+                if (this.emotion === 'happy') {
+                    // Smile
+                    ctx.arc(0, 30, 40, 0.2 * Math.PI, 0.8 * Math.PI);
+                } else if (this.emotion === 'sad') {
+                    // Frown
+                    ctx.arc(0, 80, 40, 1.2 * Math.PI, 1.8 * Math.PI);
+                } else if (this.emotion === 'angry') {
+                    // Angry line
+                    ctx.moveTo(-30, 50);
+                    ctx.lineTo(30, 50);
+                } else {
+                    // Neutral with mouth opening
+                    if (this.mouthOpenness > 0.1) {
+                        ctx.fillStyle = '#333';
+                        ctx.ellipse(0, 50, 30, 20 * this.mouthOpenness, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        ctx.moveTo(-20, 50);
+                        ctx.quadraticCurveTo(0, 55, 20, 50);
+                    }
+                }
+                ctx.stroke();
+                
+                // Eyebrows based on emotion
+                ctx.strokeStyle = '#8b4513';
+                ctx.lineWidth = 5;
+                
+                if (this.emotion === 'angry') {
+                    // Angry eyebrows
+                    ctx.beginPath();
+                    ctx.moveTo(-eyeSpacing - 20, eyeY - 50);
+                    ctx.lineTo(-eyeSpacing + 20, eyeY - 40);
+                    ctx.moveTo(eyeSpacing - 20, eyeY - 40);
+                    ctx.lineTo(eyeSpacing + 20, eyeY - 50);
+                    ctx.stroke();
+                } else if (this.emotion === 'sad') {
+                    // Sad eyebrows
+                    ctx.beginPath();
+                    ctx.moveTo(-eyeSpacing - 20, eyeY - 40);
+                    ctx.lineTo(-eyeSpacing + 20, eyeY - 50);
+                    ctx.moveTo(eyeSpacing - 20, eyeY - 50);
+                    ctx.lineTo(eyeSpacing + 20, eyeY - 40);
+                    ctx.stroke();
+                } else if (this.emotion === 'surprised') {
+                    // Raised eyebrows
+                    ctx.beginPath();
+                    ctx.moveTo(-eyeSpacing - 20, eyeY - 60);
+                    ctx.lineTo(-eyeSpacing + 20, eyeY - 60);
+                    ctx.moveTo(eyeSpacing - 20, eyeY - 60);
+                    ctx.lineTo(eyeSpacing + 20, eyeY - 60);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+        }
+        
+        const avatar = new SimpleAvatar();
+        
+        // Animation loop
+        function animate() {
+            avatar.update();
+            avatar.draw();
+            requestAnimationFrame(animate);
+        }
+        animate();
+        
+        // Mouse tracking
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            window.mouseX = e.clientX - rect.left;
+            window.mouseY = e.clientY - rect.top;
+        });
+        
+        // Emotion control
+        function setEmotion(emotion) {
+            avatar.emotion = emotion;
+            document.getElementById('current-emotion').textContent = 
+                emotion.charAt(0).toUpperCase() + emotion.slice(1);
+        }
+        
+        // Speaking simulation
+        function speak() {
+            avatar.speaking = true;
+            setTimeout(() => {
+                avatar.speaking = false;
+            }, 3000);
+            
+            // Use TTS
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance('Halo! Aku Bella, senang bertemu denganmu!');
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+        
+        // Auto-blink and idle animations
+        setInterval(() => {
+            // Random head movements
+            if (Math.random() < 0.02 && !window.mouseX) {
+                window.mouseX = canvas.width / 2 + (Math.random() - 0.5) * 200;
+                setTimeout(() => {
+                    window.mouseX = canvas.width / 2;
+                }, 1000);
+            }
+        }, 100);
+    </script>
+</body>
+</html>

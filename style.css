@@ -34,6 +34,48 @@
     }
 }
 
+/* Avatar Mode Toggle */
+.avatar-mode-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1001;
+}
+
+.mode-toggle-btn {
+    background: rgba(255, 107, 157, 0.9);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.mode-toggle-btn:hover {
+    background: rgba(255, 107, 157, 1);
+    transform: scale(1.05);
+}
+
+/* Avatar Container */
+.avatar-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    z-index: 1;
+}
+
+#bella-avatar {
+    filter: drop-shadow(0 0 30px rgba(255, 107, 157, 0.5));
+}
 
 /* --- 基本重置和全局样式 --- */
 * {

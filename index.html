@@ -16,8 +16,20 @@
         <img src="Bellaicon/Generated image.webp" alt="Loading Bella...">
     </div>
 
+    <!-- Avatar or Video Background -->
+    <div class="avatar-mode-toggle">
+        <button id="toggle-avatar-mode" class="mode-toggle-btn">
+            <i class="fas fa-video"></i> Switch to Avatar
+        </button>
+    </div>
+    
+    <!-- Live2D Avatar Container -->
+    <div class="avatar-container" id="avatar-container" style="display: none;">
+        <canvas id="bella-avatar"></canvas>
+    </div>
+    
     <!-- 视频背景 -->
-    <div class="video-container">
+    <div class="video-container" id="video-container">
         <video autoplay muted loop playsinline class="bg-video active" id="video1">
             <source src="视频资源/3D 建模图片制作.mp4" type="video/mp4">
             Your browser does not support the video tag.

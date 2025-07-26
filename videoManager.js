@@ -68,6 +68,19 @@ class VideoManager {
     getCurrentEmotion() {
         return this.currentEmotion;
     }
+    
+    // Export detect emotion for external use
+    detectEmotion(text) {
+        const lowerText = text.toLowerCase();
+        
+        for (const [emotion, keywords] of Object.entries(this.emotionKeywords)) {
+            if (keywords.some(keyword => lowerText.includes(keyword))) {
+                return emotion;
+            }
+        }
+        
+        return 'neutral';
+    }
 }
 
 export { VideoManager };

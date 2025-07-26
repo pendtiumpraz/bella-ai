@@ -2,6 +2,7 @@
 import { BellaAI } from './core.js';
 import { ChatInterface } from './chatInterface.js';
 import { VideoManager } from './videoManager.js';
+import { Live2DAvatar } from './live2dIntegration.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
     // --- Get all necessary DOM elements first ---
@@ -16,9 +17,40 @@ document.addEventListener('DOMContentLoaded', async function() {
     let bellaAI;
     let chatInterface;
     let videoManager;
+    let bellaAvatar;
+    let isAvatarMode = false;
     
     // Initialize video emotion manager
     videoManager = new VideoManager();
+    
+    // Initialize Live2D Avatar (but hidden initially)
+    bellaAvatar = new Live2DAvatar('bella-avatar');
+    
+    // Avatar mode toggle
+    const toggleBtn = document.getElementById('toggle-avatar-mode');
+    const avatarContainer = document.getElementById('avatar-container');
+    const videoContainer = document.getElementById('video-container');
+    
+    toggleBtn.addEventListener('click', () => {
+        isAvatarMode = !isAvatarMode;
+        
+        if (isAvatarMode) {
+            videoContainer.style.display = 'none';
+            avatarContainer.style.display = 'flex';
+            toggleBtn.innerHTML = '<i class="fas fa-film"></i> Switch to Video';
+            
+            // Stop video to save resources
+            video1.pause();
+            video2.pause();
+        } else {
+            videoContainer.style.display = 'block';
+            avatarContainer.style.display = 'none';
+            toggleBtn.innerHTML = '<i class="fas fa-video"></i> Switch to Avatar';
+            
+            // Resume video
+            video1.play();
+        }
+    });
     
     // 首先初始化聊天界面（不依赖AI）
     try {
@@ -70,13 +102,28 @@ document.addEventListener('DOMContentLoaded', async function() {
                             utterance.voice = indonesianVoice;
                         }
                         
+                        // Sync avatar mouth with speech
+                        if (isAvatarMode && bellaAvatar) {
+                            bellaAvatar.startSpeaking();
+                            utterance.onend = () => {
+                                bellaAvatar.stopSpeaking();
+                            };
+                        }
+                        
                         window.speechSynthesis.speak(utterance);
                     }
                     
-                    // Update video emotion
-                    const emotionChange = videoManager.switchToEmotionVideo(response);
-                    if (emotionChange) {
-                        console.log('Bella emotion changed to:', emotionChange.emotion);
+                    // Update emotion based on mode
+                    if (isAvatarMode && bellaAvatar) {
+                        // Update avatar emotion
+                        const emotion = videoManager.detectEmotion(response);
+                        bellaAvatar.setEmotion(emotion);
+                    } else {
+                        // Update video emotion
+                        const emotionChange = videoManager.switchToEmotionVideo(response);
+                        if (emotionChange) {
+                            console.log('Bella emotion changed to:', emotionChange.emotion);
+                        }
                     }
                 } catch (error) {
                     console.error('Error pemrosesan AI:', error);
@@ -135,13 +182,28 @@ document.addEventListener('DOMContentLoaded', async function() {
                             utterance.voice = indonesianVoice;
                         }
                         
+                        // Sync avatar mouth with speech
+                        if (isAvatarMode && bellaAvatar) {
+                            bellaAvatar.startSpeaking();
+                            utterance.onend = () => {
+                                bellaAvatar.stopSpeaking();
+                            };
+                        }
+                        
                         window.speechSynthesis.speak(utterance);
                     }
                     
-                    // Update video emotion
-                    const emotionChange = videoManager.switchToEmotionVideo(response);
-                    if (emotionChange) {
-                        console.log('Bella emotion changed to:', emotionChange.emotion);
+                    // Update emotion based on mode
+                    if (isAvatarMode && bellaAvatar) {
+                        // Update avatar emotion
+                        const emotion = videoManager.detectEmotion(response);
+                        bellaAvatar.setEmotion(emotion);
+                    } else {
+                        // Update video emotion
+                        const emotionChange = videoManager.switchToEmotionVideo(response);
+                        if (emotionChange) {
+                            console.log('Bella emotion changed to:', emotionChange.emotion);
+                        }
                     }
                 } catch (error) {
                     console.error('Error pemrosesan AI:', error);

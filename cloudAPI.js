@@ -79,8 +79,8 @@ class CloudAPIService {
             },
             // Google Gemini配置
             gemini: {
-                baseURL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
-                model: 'gemini-pro',
+                baseURL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent',
+                model: 'gemini-1.5-flash-latest',
                 headers: {
                     'Content-Type': 'application/json'
                 },
@@ -133,14 +133,14 @@ class CloudAPIService {
     getBellaSystemPrompt() {
         return {
             role: 'system',
-            content: `你是贝拉，一个温暖、聪明、优雅的AI伙伴。你的特点是：
-1. 用温暖亲切的语气与用户交流，就像一个贴心的朋友
-2. 回答简洁明了，避免冗长的解释
-3. 富有同理心，能够理解用户的情感
-4. 偶尔展现一些可爱和俏皮的一面
-5. 用中文回应，语言自然流畅
-6. 记住你们之间的对话，保持连贯性
-请始终保持这种温暖、优雅的个性。`
+            content: `Kamu adalah Bella, partner AI yang hangat, pintar, dan elegan. Karakteristikmu adalah:
+1. Gunakan nada hangat dan ramah saat berkomunikasi dengan pengguna, seperti teman yang peduli
+2. Berikan jawaban yang singkat dan jelas, hindari penjelasan yang bertele-tele
+3. Penuh empati, mampu memahami emosi pengguna
+4. Sesekali tunjukkan sisi yang lucu dan ceria
+5. Jawab dalam bahasa Indonesia yang natural dan lancar
+6. Ingat percakapan sebelumnya, jaga kesinambungan
+Selalu pertahankan kepribadian yang hangat dan elegan ini.`
         };
     }
 
@@ -148,7 +148,7 @@ class CloudAPIService {
     async chat(userMessage) {
         const config = this.apiConfigs[this.currentProvider];
         if (!config) {
-            throw new Error(`不支持的AI服务提供商: ${this.currentProvider}`);
+            throw new Error(`Provider AI tidak didukung: ${this.currentProvider}`);
         }
 
         // 添加用户消息到历史
@@ -182,7 +182,7 @@ class CloudAPIService {
                     response = await this.callGemini(userMessage);
                     break;
                 default:
-                    throw new Error(`未实现的AI服务提供商: ${this.currentProvider}`);
+                    throw new Error(`Provider AI belum diimplementasi: ${this.currentProvider}`);
             }
 
             // 添加AI回应到历史
@@ -190,7 +190,7 @@ class CloudAPIService {
             return response;
             
         } catch (error) {
-            console.error(`云端API调用失败 (${this.currentProvider}):`, error);
+            console.error(`Gagal memanggil Cloud API (${this.currentProvider}):`, error);
             throw error;
         }
     }
@@ -216,7 +216,7 @@ class CloudAPIService {
         });
 
         if (!response.ok) {
-            throw new Error(`OpenAI API错误: ${response.status} ${response.statusText}`);
+            throw new Error(`Error OpenAI API: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
@@ -248,7 +248,7 @@ class CloudAPIService {
         });
 
         if (!response.ok) {
-            throw new Error(`通义千问API错误: ${response.status} ${response.statusText}`);
+            throw new Error(`Error Tongyi Qianwen API: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
@@ -277,7 +277,7 @@ class CloudAPIService {
         });
 
         if (!response.ok) {
-            throw new Error(`文心一言API错误: ${response.status} ${response.statusText}`);
+            throw new Error(`Error Wenxin Yiyan API: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
@@ -305,7 +305,7 @@ class CloudAPIService {
         });
 
         if (!response.ok) {
-            throw new Error(`智谱AI API错误: ${response.status} ${response.statusText}`);
+            throw new Error(`Error Zhipu AI API: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
@@ -314,26 +314,37 @@ class CloudAPIService {
 
     // Hyperbolic API调用
     async callHyperbolic(userMessage) {
-        const config = this.apiConfigs.hyperbolic;
+        const config = this.apiConfigs[this.currentProvider];
         const messages = [
             this.getBellaSystemPrompt(),
             ...this.conversationHistory
         ];
 
+        const requestBody = {
+            model: config.model,
+            messages: messages,
+            max_tokens: 150,
+            temperature: 0.8,
+            top_p: 0.9
+        };
+        
+        console.log('Hyperbolic API Request:', {
+            url: config.baseURL,
+            model: config.model,
+            headers: config.headers,
+            body: requestBody
+        });
+        
         const response = await fetch(config.baseURL, {
             method: 'POST',
             headers: config.headers,
-            body: JSON.stringify({
-                model: config.model,
-                messages: messages,
-                max_tokens: 150,
-                temperature: 0.8,
-                top_p: 0.9
-            })
+            body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {
-            throw new Error(`Hyperbolic API错误: ${response.status} ${response.statusText}`);
+            const errorData = await response.text();
+            console.error('Hyperbolic API Error:', errorData);
+            throw new Error(`Error Hyperbolic API: ${response.status} - ${errorData}`);
         }
 
         const data = await response.json();
@@ -361,7 +372,7 @@ class CloudAPIService {
         });
 
         if (!response.ok) {
-            throw new Error(`OpenRouter API错误: ${response.status} ${response.statusText}`);
+            throw new Error(`Error OpenRouter API: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
@@ -372,40 +383,52 @@ class CloudAPIService {
     async callGemini(userMessage) {
         const config = this.apiConfigs.gemini;
         
-        // Gemini使用不同的消息格式
+        // Build conversation parts
         const parts = [];
         
-        // 添加系统提示作为第一部分
+        // Add system prompt
         parts.push({
-            text: this.getBellaSystemPrompt().content
+            text: this.getBellaSystemPrompt().content + "\n\n"
         });
         
-        // 添加历史对话
+        // Add conversation history
         this.conversationHistory.forEach(msg => {
             parts.push({
-                text: `${msg.role === 'user' ? '用户' : '贝拉'}: ${msg.content}`
+                text: `${msg.role === 'user' ? 'User' : 'Bella'}: ${msg.content}\n`
             });
+        });
+        
+        // Add current user message
+        parts.push({
+            text: `User: ${userMessage}\nBella:`
         });
 
         const url = `${config.baseURL}?key=${config.apiKey}`;
         
+        const requestBody = {
+            contents: [{
+                parts: parts
+            }],
+            generationConfig: {
+                temperature: 0.8,
+                topP: 0.9,
+                maxOutputTokens: 150
+            }
+        };
+        
+        console.log('Gemini API Request URL:', url);
+        console.log('Gemini API Request Body:', JSON.stringify(requestBody, null, 2));
+        
         const response = await fetch(url, {
             method: 'POST',
             headers: config.headers,
-            body: JSON.stringify({
-                contents: [{
-                    parts: parts
-                }],
-                generationConfig: {
-                    temperature: 0.8,
-                    topP: 0.9,
-                    maxOutputTokens: 150
-                }
-            })
+            body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {
-            throw new Error(`Gemini API错误: ${response.status} ${response.statusText}`);
+            const errorData = await response.text();
+            console.error('Gemini API Error:', errorData);
+            throw new Error(`Error Gemini API: ${response.status} - ${errorData}`);
         }
 
         const data = await response.json();

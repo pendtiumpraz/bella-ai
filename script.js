@@ -25,9 +25,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // 自动显示聊天界面（调试用）
         setTimeout(() => {
-            console.log('尝试自动显示聊天界面...');
+            console.log('Mencoba menampilkan interface chat otomatis...');
             chatInterface.show();
-            console.log('聊天界面已自动显示');
+            console.log('Interface chat sudah ditampilkan otomatis');
             console.log('聊天界面可见性:', chatInterface.getVisibility());
             console.log('聊天容器类名:', chatInterface.chatContainer.className);
         }, 2000);
@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // 然后尝试初始化AI核心
     micButton.disabled = true;
-    transcriptDiv.textContent = '正在唤醒贝拉的核心...';
+    transcriptDiv.textContent = 'Sedang membangunkan inti Bella...';
     try {
         bellaAI = await BellaAI.getInstance();
         console.log('Bella AI 初始化成功');
@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     chatInterface.hideTypingIndicator();
                     chatInterface.addMessage('assistant', response);
                 } catch (error) {
-                    console.error('AI处理错误:', error);
+                    console.error('Error pemrosesan AI:', error);
                     chatInterface.hideTypingIndicator();
                     chatInterface.addMessage('assistant', '抱歉，我现在有点困惑，请稍后再试...');
                 }
@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             // 设置提供商切换回调
             chatInterface.onProviderChange = (provider) => {
-                console.log('切换AI提供商到:', provider);
+                console.log('Beralih ke provider AI:', provider);
                 if (provider === 'local') {
                     bellaAI.useCloudAPI = false;
                 } else {
@@ -70,32 +70,49 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             // 设置API密钥保存回调
             chatInterface.onAPIKeySave = (provider, apiKey) => {
-                console.log('保存API密钥:', provider);
+                console.log('Menyimpan API key:', provider);
                 bellaAI.cloudAPI.setAPIKey(provider, apiKey);
             };
         }
         
         micButton.disabled = false;
-        transcriptDiv.textContent = '贝拉已准备好，请点击麦克风开始对话。';
+        transcriptDiv.textContent = 'Bella sudah siap, klik mikrofon untuk mulai bicara.';
     } catch (error) {
         console.error('Failed to initialize Bella AI:', error);
-        transcriptDiv.textContent = 'AI模型加载失败，但聊天界面仍可使用。';
+        transcriptDiv.textContent = 'Model lokal gagal dimuat, menggunakan cloud API.';
         
-        // 即使AI失败，也提供基本的聊天功能
+        // Buat instance BellaAI tanpa model lokal
+        bellaAI = await BellaAI.getInstance();
+        
+        // Setup chat dengan cloud API
         if (chatInterface) {
             chatInterface.onMessageSend = async (message) => {
-                chatInterface.showTypingIndicator();
-                setTimeout(() => {
+                try {
+                    chatInterface.showTypingIndicator();
+                    const response = await bellaAI.think(message);
                     chatInterface.hideTypingIndicator();
-                    const fallbackResponses = [
-                        '我的AI核心还在加载中，请稍后再试...',
-                        '抱歉，我现在无法正常思考，但我会努力学习的！',
-                        '我的大脑还在启动中，请给我一点时间...',
-                        '系统正在更新，暂时无法提供智能回复。'
-                    ];
-                    const randomResponse = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
-                    chatInterface.addMessage('assistant', randomResponse);
-                }, 1000);
+                    chatInterface.addMessage('assistant', response);
+                } catch (error) {
+                    console.error('Error pemrosesan AI:', error);
+                    chatInterface.hideTypingIndicator();
+                    chatInterface.addMessage('assistant', 'Maaf, ada masalah dengan koneksi AI. Coba lagi nanti...');
+                }
+            };
+            
+            // Setup provider dan API key callbacks
+            chatInterface.onProviderChange = (provider) => {
+                console.log('Beralih ke provider AI:', provider);
+                if (provider === 'local') {
+                    bellaAI.useCloudAPI = false;
+                } else {
+                    bellaAI.useCloudAPI = true;
+                    bellaAI.cloudAPI.switchProvider(provider);
+                }
+            };
+            
+            chatInterface.onAPIKeySave = (provider, apiKey) => {
+                console.log('Menyimpan API key:', provider);
+                bellaAI.cloudAPI.setAPIKey(provider, apiKey);
             };
         }
         
@@ -189,9 +206,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                 // 更新按钮状态
                 const isVisible = chatInterface.getVisibility();
                 chatToggleBtn.innerHTML = isVisible ? 
-                    '<i class="fas fa-times"></i><span>关闭</span>' : 
-                    '<i class="fas fa-comments"></i><span>聊天</span>';
-                console.log('按钮文本更新为:', chatToggleBtn.innerHTML);
+                    '<i class="fas fa-times"></i><span>Tutup</span>' : 
+                    '<i class="fas fa-comments"></i><span>Chat</span>';
+                console.log('Text tombol diupdate menjadi:', chatToggleBtn.innerHTML);
             }
         });
     }
@@ -200,20 +217,20 @@ document.addEventListener('DOMContentLoaded', async function() {
         chatTestBtn.addEventListener('click', () => {
             if (chatInterface) {
                 const testMessages = [
-                    '你好！我是贝拉，很高兴见到你！',
-                    '聊天界面工作正常，所有功能都已就绪。',
-                    '这是一条测试消息，用来验证界面功能。'
+                    'Halo! Saya Bella, senang bertemu denganmu!',
+                    'Interface chat berfungsi normal, semua fitur sudah siap.',
+                    'Ini adalah pesan test untuk verifikasi fungsi interface.'
                 ];
                 const randomMessage = testMessages[Math.floor(Math.random() * testMessages.length)];
                 chatInterface.addMessage('assistant', randomMessage);
                 
-                // 如果聊天界面未显示，则自动显示
+                // Jika chat interface belum tampil, tampilkan otomatis
                 if (!chatInterface.getVisibility()) {
                     chatInterface.show();
-                    chatToggleBtn.innerHTML = '<i class="fas fa-times"></i><span>关闭</span>';
+                    chatToggleBtn.innerHTML = '<i class="fas fa-times"></i><span>Tutup</span>';
                 }
                 
-                console.log('测试消息已添加:', randomMessage);
+                console.log('Pesan test sudah ditambahkan:', randomMessage);
             }
         });
     }
@@ -244,12 +261,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
 
             // Update interim results
-            transcriptContainer.textContent = `你: ${final_transcript || interim_transcript}`;
+            transcriptContainer.textContent = `Kamu: ${final_transcript || interim_transcript}`;
 
             // Once we have a final result, process it with the AI
             if (final_transcript && bellaAI) {
                 const userText = final_transcript.trim();
-                transcriptContainer.textContent = `你: ${userText}`;
+                transcriptContainer.textContent = `Kamu: ${userText}`;
 
                 // 如果聊天界面已打开，也在聊天窗口中显示
                 if (chatInterface && chatInterface.getVisibility()) {
@@ -259,7 +276,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 try {
                     // Let Bella think
                     const thinkingText = document.createElement('p');
-                    thinkingText.textContent = '贝拉正在思考...';
+                    thinkingText.textContent = 'Bella sedang berpikir...';
                     thinkingText.style.color = '#888';
                     thinkingText.style.fontStyle = 'italic';
                     transcriptContainer.appendChild(thinkingText);
@@ -268,7 +285,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     
                     transcriptContainer.removeChild(thinkingText);
                     const bellaText = document.createElement('p');
-                    bellaText.textContent = `贝拉: ${response}`;
+                    bellaText.textContent = `Bella: ${response}`;
                     bellaText.style.color = '#ff6b9d';
                     bellaText.style.fontWeight = 'bold';
                     bellaText.style.marginTop = '10px';
@@ -290,7 +307,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } catch (error) {
                     console.error('Bella AI processing error:', error);
                     const errorText = document.createElement('p');
-                    const errorMsg = '贝拉处理时遇到问题，但她还在努力学习中...';
+                    const errorMsg = 'Bella mengalami masalah saat memproses, tapi dia masih berusaha belajar...';
                     errorText.textContent = errorMsg;
                     errorText.style.color = '#ff9999';
                     transcriptContainer.appendChild(errorText);
@@ -303,33 +320,98 @@ document.addEventListener('DOMContentLoaded', async function() {
         };
 
         recognition.onerror = (event) => {
-            console.error('语音识别错误:', event.error);
+            console.error('Error pengenalan suara:', event.error);
+            const transcriptContainer = document.getElementById('transcript');
+            
+            switch(event.error) {
+                case 'not-allowed':
+                    transcriptContainer.textContent = 'Akses mikrofon ditolak. Silakan izinkan akses mikrofon di browser.';
+                    // Show permission prompt
+                    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                        navigator.mediaDevices.getUserMedia({ audio: true })
+                            .then(stream => {
+                                console.log('Mikrofon diizinkan');
+                                stream.getTracks().forEach(track => track.stop());
+                            })
+                            .catch(err => {
+                                console.error('Gagal mendapat izin mikrofon:', err);
+                            });
+                    }
+                    break;
+                case 'no-speech':
+                    transcriptContainer.textContent = 'Tidak ada suara terdeteksi. Coba lagi.';
+                    break;
+                case 'audio-capture':
+                    transcriptContainer.textContent = 'Mikrofon tidak ditemukan. Pastikan mikrofon terhubung.';
+                    break;
+                case 'network':
+                    transcriptContainer.textContent = 'Error jaringan. Periksa koneksi internet.';
+                    break;
+                default:
+                    transcriptContainer.textContent = `Error: ${event.error}`;
+            }
+            
+            // Reset button state
+            isListening = false;
+            micButton.classList.remove('is-listening');
         };
 
     } else {
-        console.log('您的浏览器不支持语音识别功能。');
+        console.log('Browser Anda tidak mendukung fitur pengenalan suara.');
         // 可以在界面上给用户提示
     }
 
     // --- 麦克风按钮交互 ---
     let isListening = false;
 
-    micButton.addEventListener('click', function() {
-        if (!SpeechRecognition) return; // 如果不支持，则不执行任何操作
+    micButton.addEventListener('click', async function() {
+        if (!SpeechRecognition) {
+            const transcriptText = document.getElementById('transcript');
+            transcriptText.textContent = 'Browser tidak mendukung voice recognition.';
+            return;
+        }
 
-        isListening = !isListening;
-        micButton.classList.toggle('is-listening', isListening);
-        const transcriptContainer = document.querySelector('.transcript-container');
-        const transcriptText = document.getElementById('transcript');
-
-        if (isListening) {
-            transcriptText.textContent = '聆听中...'; // 立刻显示提示
-            transcriptContainer.classList.add('visible');
-            recognition.start();
+        // Check microphone permission first
+        if (isListening === false) {
+            try {
+                // Request permission before starting recognition
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log('Mikrofon diizinkan');
+                // Stop the stream immediately - we just needed permission
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Now start recognition
+                isListening = true;
+                micButton.classList.add('is-listening');
+                const transcriptContainer = document.querySelector('.transcript-container');
+                const transcriptText = document.getElementById('transcript');
+                transcriptText.textContent = 'Mendengarkan...';
+                transcriptContainer.classList.add('visible');
+                recognition.start();
+                
+            } catch (err) {
+                console.error('Error mendapat izin mikrofon:', err);
+                const transcriptText = document.getElementById('transcript');
+                const transcriptContainer = document.querySelector('.transcript-container');
+                transcriptContainer.classList.add('visible');
+                
+                if (err.name === 'NotAllowedError') {
+                    transcriptText.textContent = 'Akses mikrofon ditolak. Klik ikon gembok di address bar untuk memberi izin.';
+                } else if (err.name === 'NotFoundError') {
+                    transcriptText.textContent = 'Mikrofon tidak ditemukan. Pastikan mikrofon terhubung.';
+                } else {
+                    transcriptText.textContent = 'Error: ' + err.message;
+                }
+            }
         } else {
+            // Stop recognition
+            isListening = false;
+            micButton.classList.remove('is-listening');
+            const transcriptContainer = document.querySelector('.transcript-container');
+            const transcriptText = document.getElementById('transcript');
             recognition.stop();
             transcriptContainer.classList.remove('visible');
-            transcriptText.textContent = ''; // 清空文本
+            transcriptText.textContent = '';
         }
     });
 

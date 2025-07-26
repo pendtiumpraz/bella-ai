@@ -83,15 +83,15 @@ class BellaAI {
             return await this.thinkWithLocalModel(prompt);
             
         } catch (error) {
-            console.error('思考过程中出现错误:', error);
+            console.error('Error dalam proses berpikir:', error);
             
             // 如果云端API失败，尝试降级到本地模型
             if (this.useCloudAPI) {
-                console.log('云端API失败，降级到本地模型...');
+                console.log('Cloud API gagal, beralih ke model lokal...');
                 try {
                     return await this.thinkWithLocalModel(prompt);
                 } catch (localError) {
-                    console.error('本地模型也失败了:', localError);
+                    console.error('Model lokal juga gagal:', localError);
                 }
             }
             
@@ -108,7 +108,7 @@ class BellaAI {
     // 使用本地模型进行思考
     async thinkWithLocalModel(prompt) {
         if (!this.llm) {
-            return "我还在学习如何思考，请稍等片刻...";
+            return "Aku masih belajar cara berpikir, tunggu sebentar...";
         }
         
         const bellaPrompt = this.enhancePromptForMode(prompt, true);
@@ -126,21 +126,21 @@ class BellaAI {
             response = response.replace(bellaPrompt, '').trim();
         }
         
-        return response || "我需要再想想...";
+        return response || "Aku perlu mikir lagi...";
     }
 
     // 根据模式增强提示词
     enhancePromptForMode(prompt, isLocal = false) {
         const modePrompts = {
             casual: isLocal ? 
-                `作为一个温暖、可爱的AI伙伴贝拉，用轻松亲切的语气回应：${prompt}` :
-                `请用温暖、轻松的语气回应，就像一个贴心的朋友。保持简洁有趣：${prompt}`,
+                `Sebagai Bella, partner AI yang hangat dan lucu, jawab dengan nada santai dan ramah: ${prompt}` :
+                `Tolong jawab dengan nada hangat dan santai, seperti teman yang peduli. Tetap singkat dan menarik: ${prompt}`,
             assistant: isLocal ?
-                `作为智能助手贝拉，提供有用、准确的帮助：${prompt}` :
-                `作为一个专业但温暖的AI助手，提供准确有用的信息和建议：${prompt}`,
+                `Sebagai asisten pintar Bella, berikan bantuan yang berguna dan akurat: ${prompt}` :
+                `Sebagai asisten AI yang profesional tapi hangat, berikan informasi dan saran yang akurat dan berguna: ${prompt}`,
             creative: isLocal ?
-                `作为富有创意的AI伙伴贝拉，发挥想象力回应：${prompt}` :
-                `发挥创意和想象力，提供有趣、独特的回应和想法：${prompt}`
+                `Sebagai partner AI kreatif Bella, gunakan imajinasi untuk menjawab: ${prompt}` :
+                `Gunakan kreativitas dan imajinasi, berikan respons dan ide yang menarik dan unik: ${prompt}`
         };
         
         return modePrompts[this.currentMode] || modePrompts.casual;
@@ -149,10 +149,10 @@ class BellaAI {
     // 获取错误回应
     getErrorResponse() {
         const errorResponses = [
-            "抱歉，我现在有点困惑，让我重新整理一下思路...",
-            "嗯...我需要再想想，请稍等一下。",
-            "我的思绪有点乱，给我一点时间整理一下。",
-            "让我重新组织一下语言，稍等片刻。"
+            "Maaf, aku agak bingung sekarang, biar aku rapikan dulu pikiranku...",
+            "Hmm... aku perlu mikir lagi, tunggu sebentar ya.",
+            "Pikiranku agak kacau, beri aku waktu sebentar untuk merapikannya.",
+            "Biar aku susun lagi kata-kataku, tunggu sebentar."
         ];
         
         return errorResponses[Math.floor(Math.random() * errorResponses.length)];

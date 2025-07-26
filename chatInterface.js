@@ -37,15 +37,15 @@ class ChatInterface {
                 <div class="bella-chat-title">
                     <div class="bella-avatar">💝</div>
                     <div class="bella-title-text">
-                        <h3>贝拉</h3>
-                        <span class="bella-status">在线</span>
+                        <h3>Bella</h3>
+                        <span class="bella-status">Online</span>
                     </div>
                 </div>
                 <div class="bella-chat-controls">
-                    <button class="bella-settings-btn" title="设置">
+                    <button class="bella-settings-btn" title="Pengaturan">
                         <i class="fas fa-cog"></i>
                     </button>
-                    <button class="bella-minimize-btn" title="最小化">
+                    <button class="bella-minimize-btn" title="Minimalkan">
                         <i class="fas fa-minus"></i>
                     </button>
                 </div>
@@ -53,13 +53,13 @@ class ChatInterface {
             <div class="bella-chat-messages"></div>
             <div class="bella-chat-input-container">
                 <div class="bella-input-wrapper">
-                    <input type="text" class="bella-message-input" placeholder="和贝拉聊聊天..." maxlength="500">
-                    <button class="bella-send-btn" title="发送">
+                    <input type="text" class="bella-message-input" placeholder="Ngobrol dengan Bella..." maxlength="500">
+                    <button class="bella-send-btn" title="Kirim">
                         <i class="fas fa-paper-plane"></i>
                     </button>
                 </div>
                 <div class="bella-input-hint">
-                    按 Enter 发送，Shift + Enter 换行
+                    Tekan Enter untuk kirim, Shift + Enter untuk baris baru
                 </div>
             </div>
         `;
@@ -81,9 +81,9 @@ class ChatInterface {
             <div class="bella-toggle-icon">
                 <i class="fas fa-comments"></i>
             </div>
-            <div class="bella-toggle-text">与贝拉聊天</div>
+            <div class="bella-toggle-text">Chat dengan Bella</div>
         `;
-        this.toggleButton.title = '打开聊天窗口';
+        this.toggleButton.title = 'Buka jendela chat';
         
         document.body.appendChild(this.toggleButton);
     }
@@ -94,14 +94,14 @@ class ChatInterface {
         this.settingsPanel.className = 'bella-settings-panel';
         this.settingsPanel.innerHTML = `
             <div class="bella-settings-header">
-                <h4>聊天设置</h4>
+                <h4>Pengaturan Chat</h4>
                 <button class="bella-settings-close">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="bella-settings-content">
                 <div class="bella-setting-group">
-                    <label>AI服务提供商</label>
+                    <label>Provider AI</label>
                     <select class="bella-provider-select">
                         <option value="gemini" selected>Google Gemini</option>
                         <option value="hyperbolic_deepseek_v3">Hyperbolic DeepSeek V3</option>
@@ -109,27 +109,27 @@ class ChatInterface {
                         <option value="hyperbolic_qwen">Hyperbolic Qwen</option>
                         <option value="openrouter">OpenRouter</option>
                         <option value="openai">OpenAI GPT</option>
-                        <option value="qwen">通义千问</option>
-                        <option value="ernie">文心一言</option>
-                        <option value="glm">智谱AI</option>
-                        <option value="local">本地模型</option>
+                        <option value="qwen">Tongyi Qianwen</option>
+                        <option value="ernie">Wenxin Yiyan</option>
+                        <option value="glm">Zhipu AI</option>
+                        <option value="local">Model Lokal</option>
                     </select>
                 </div>
                 <div class="bella-setting-group bella-api-key-group" style="display: none;">
-                    <label>API密钥</label>
-                    <input type="password" class="bella-api-key-input" placeholder="请输入API密钥">
-                    <button class="bella-api-key-save">保存</button>
+                    <label>API Key</label>
+                    <input type="password" class="bella-api-key-input" placeholder="Masukkan API Key">
+                    <button class="bella-api-key-save">Simpan</button>
                 </div>
                 <div class="bella-setting-group">
-                    <label>聊天模式</label>
+                    <label>Mode Chat</label>
                     <select class="bella-mode-select">
-                        <option value="casual">轻松聊天</option>
-                        <option value="assistant">智能助手</option>
-                        <option value="creative">创意伙伴</option>
+                        <option value="casual">Santai</option>
+                        <option value="assistant">Asisten Pintar</option>
+                        <option value="creative">Partner Kreatif</option>
                     </select>
                 </div>
                 <div class="bella-setting-group">
-                    <button class="bella-clear-history">清除聊天记录</button>
+                    <button class="bella-clear-history">Hapus Riwayat Chat</button>
                 </div>
             </div>
         `;
@@ -189,13 +189,16 @@ class ChatInterface {
         
         providerSelect.addEventListener('change', (e) => {
             const provider = e.target.value;
-            if (provider === 'local' || provider === 'gemini') {
+            if (provider === 'local' || provider === 'gemini' || 
+                provider === 'hyperbolic_deepseek_v3' || 
+                provider === 'hyperbolic_deepseek_r1' || 
+                provider === 'hyperbolic_qwen') {
                 apiKeyGroup.style.display = 'none';
             } else {
                 apiKeyGroup.style.display = 'block';
             }
             
-            // 触发提供商切换事件
+            // Trigger provider change event
             this.onProviderChange?.(provider);
         });
 
@@ -206,7 +209,7 @@ class ChatInterface {
             
             if (apiKey.trim()) {
                 this.onAPIKeySave?.(provider, apiKey.trim());
-                this.showNotification('API密钥已保存', 'success');
+                this.showNotification('API Key berhasil disimpan', 'success');
             }
         });
 
@@ -220,7 +223,7 @@ class ChatInterface {
 
     // 添加欢迎消息
     addWelcomeMessage() {
-        this.addMessage('assistant', '你好！我是贝拉，你的AI伙伴。很高兴见到你！有什么想聊的吗？', true);
+        this.addMessage('assistant', 'Halo! Saya Bella, partner AI kamu. Senang bertemu denganmu! Ada yang ingin dibicarakan?', true);
     }
 
     // 切换聊天窗口显示/隐藏

@@ -1,0 +1,16 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "CEVIOAImaki.moc3",
+		"Textures": [
+			"CEVIOAImaki.4096/texture_00.png"
+		]
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": []
+		}
+	]
+}

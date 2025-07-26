@@ -1,0 +1,10 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "wuzhi.moc3",
+		"Textures": [
+			"wuzhi.4096/texture_00.png"
+		],
+		"DisplayInfo": "wuzhi.cdi3.json"
+	}
+}

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Bella Live2D with Lip Sync</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #canvas {
+            display: block;
+            margin: 0 auto;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: white;
+        }
+        button {
+            margin: 0 5px;
+            padding: 5px 15px;
+            border: none;
+            border-radius: 15px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+        }
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Bella Live2D Avatar</h3>
+        <p>Model: Hiyori (Free Sample)</p>
+        <p>Mouth sync: <span id="lip-status">Ready</span></p>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <button onclick="speak('Halo! Aku Bella, senang bertemu denganmu!')">Test Speak</button>
+        <button onclick="setExpression('f01')">Happy</button>
+        <button onclick="setExpression('f02')">Sad</button>
+        <button onclick="setExpression('f03')">Angry</button>
+        <button onclick="setMotion('Idle')">Idle</button>
+        <button onclick="setMotion('TapBody')">Wave</button>
+    </div>
+
+    <!-- Pixi.js for rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+    <!-- Live2D Cubism SDK -->
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <!-- pixi-live2d-display for easier integration -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js"></script>
+
+    <script>
+        const PIXI = window.PIXI;
+        const Live2D = window.PIXI.live2d;
+
+        // Initialize Pixi Application
+        const app = new PIXI.Application({
+            view: document.getElementById('canvas'),
+            width: 800,
+            height: 900,
+            transparent: true,
+            autoStart: true
+        });
+
+        let currentModel;
+        let audioContext;
+        let analyser;
+
+        // Load Live2D Model
+        async function loadModel() {
+            // Using free Hiyori model as example
+            // You can replace with any Live2D model that has mouth morphs
+            const modelUrl = 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display/test/assets/hiyori/hiyori_pro_en.model3.json';
+            
+            try {
+                currentModel = await Live2D.Live2DModel.from(modelUrl, {
+                    autoInteract: false
+                });
+                
+                // Scale and position
+                currentModel.scale.set(0.3);
+                currentModel.x = app.screen.width / 2;
+                currentModel.y = app.screen.height / 2 + 100;
+                
+                // Enable hit testing for interaction
+                currentModel.interactive = true;
+                
+                // Add to stage
+                app.stage.addChild(currentModel);
+                
+                // Mouse tracking
+                app.stage.interactive = true;
+                app.stage.on('pointermove', (event) => {
+                    currentModel.focus(event.data.global.x, event.data.global.y);
+                });
+                
+                // Start idle animation
+                currentModel.motion('Idle');
+                
+                console.log('Model loaded successfully');
+                setupAudioAnalyser();
+                
+            } catch (error) {
+                console.error('Failed to load model:', error);
+            }
+        }
+
+        // Setup Web Audio API for lip sync
+        function setupAudioAnalyser() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.8;
+        }
+
+        // Analyze audio for lip sync
+        function analyzeAudio(stream) {
+            const source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            
+            function updateLipSync() {
+                analyser.getByteFrequencyData(dataArray);
+                
+                // Calculate average volume
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    sum += dataArray[i];
+                }
+                const average = sum / dataArray.length;
+                
+                // Map volume to mouth opening (0-1)
+                const mouthOpen = Math.min(average / 100, 1);
+                
+                // Update mouth parameter
+                if (currentModel) {
+                    // Different models have different parameter names
+                    // Common ones: ParamMouthOpenY, ParamMouth, PARAM_MOUTH_OPEN_Y
+                    currentModel.internalModel.coreModel.setParameterValueByIndex(
+                        currentModel.internalModel.coreModel.getParameterIndex('ParamMouthOpenY'),
+                        mouthOpen
+                    );
+                }
+                
+                requestAnimationFrame(updateLipSync);
+            }
+            
+            updateLipSync();
+        }
+
+        // Text to Speech with lip sync
+        async function speak(text) {
+            if ('speechSynthesis' in window) {
+                // Create utterance
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                
+                // Get Indonesian voice if available
+                const voices = window.speechSynthesis.getVoices();
+                const indonesianVoice = voices.find(voice => voice.lang.startsWith('id'));
+                if (indonesianVoice) {
+                    utterance.voice = indonesianVoice;
+                }
+                
+                // Lip sync simulation during speech
+                let lipSyncInterval;
+                
+                utterance.onstart = () => {
+                    document.getElementById('lip-status').textContent = 'Speaking...';
+                    
+                    // Simulate lip sync with random mouth movements
+                    lipSyncInterval = setInterval(() => {
+                        if (currentModel) {
+                            const mouthOpen = 0.3 + Math.random() * 0.7;
+                            currentModel.internalModel.coreModel.setParameterValueByIndex(
+                                currentModel.internalModel.coreModel.getParameterIndex('ParamMouthOpenY'),
+                                mouthOpen
+                            );
+                        }
+                    }, 100);
+                };
+                
+                utterance.onend = () => {
+                    document.getElementById('lip-status').textContent = 'Ready';
+                    clearInterval(lipSyncInterval);
+                    
+                    // Close mouth
+                    if (currentModel) {
+                        currentModel.internalModel.coreModel.setParameterValueByIndex(
+                            currentModel.internalModel.coreModel.getParameterIndex('ParamMouthOpenY'),
+                            0
+                        );
+                    }
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // Set expression
+        function setExpression(expressionId) {
+            if (currentModel) {
+                currentModel.expression(expressionId);
+            }
+        }
+
+        // Set motion
+        function setMotion(motionGroup, index = 0) {
+            if (currentModel) {
+                currentModel.motion(motionGroup, index);
+            }
+        }
+
+        // Load model on start
+        loadModel();
+
+        // For real-time lip sync with microphone
+        async function startMicrophoneLipSync() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                analyzeAudio(stream);
+                document.getElementById('lip-status').textContent = 'Mic Active';
+            } catch (error) {
+                console.error('Microphone access denied:', error);
+            }
+        }
+    </script>
+</body>
+</html>

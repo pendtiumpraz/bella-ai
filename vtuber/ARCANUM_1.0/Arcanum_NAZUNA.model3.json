@@ -1,0 +1,50 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "Arcanum_NAZUNA.moc3",
+		"Textures": [
+			"Arcanum_NAZUNA.8192/texture_00.png"
+		],
+		"Physics": "Arcanum_NAZUNA.physics3.json",
+		"DisplayInfo": "Arcanum_NAZUNA.cdi3.json",
+		"Expressions": [
+			{
+				"Name": "HAT",
+				"File": "HAT.exp3.json"
+			},
+			{
+				"Name": "CAPE",
+				"File": "CAPE.exp3.json"
+			},
+			{
+				"Name": "BOW",
+				"File": "BOW.exp3.json"
+			},
+			{
+				"Name": "BACK_FRILL",
+				"File": "BACK FRILL.exp3.json"
+			},
+			{
+				"Name": "R_HAIR",
+				"File": "R HAIR.exp3.json"
+			},
+			{
+				"Name": "L_HAIR",
+				"File": "L HAIR.exp3.json"
+			}
+		]
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		}
+	],
+	"HitAreas": []
+}

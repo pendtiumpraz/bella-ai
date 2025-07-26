@@ -1,0 +1,8 @@
+{
+	"type": "Live2D Model Setting",
+	"name": "nagisa_shiota",
+	"model": "nagisa_shiota.moc",
+	"textures": [
+		"nagisa_shiota.1024/texture_00.png"
+	]
+}

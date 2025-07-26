@@ -1,0 +1,9 @@
+{
+	"type": "Live2d Model Setting",
+	"name": "hinoka",
+	"model": "hinoka.moc",
+	"textures": [
+		"hinoka.1024/textures_00.png",
+		"hinoka.1024/textures_01.png",
+	]
+}

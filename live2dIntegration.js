@@ -88,10 +88,14 @@ class Live2DAvatar {
     draw() {
         const { ctx, canvas } = this;
         const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
+        const centerY = canvas.height / 2 - 50;
         
-        // Clear canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Clear canvas with gradient background
+        const gradient = ctx.createRadialGradient(centerX, centerY, 100, centerX, centerY, 300);
+        gradient.addColorStop(0, 'rgba(255, 182, 193, 0.1)');
+        gradient.addColorStop(1, 'rgba(255, 107, 157, 0.05)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         // Save context
         ctx.save();
@@ -102,80 +106,232 @@ class Live2DAvatar {
         // Apply breathing
         ctx.scale(1, 1 + this.state.breathing * 0.002);
         
-        // Draw hair back
-        ctx.fillStyle = '#8B4513';
+        // Draw hair back layer with gradient
+        const hairGradient = ctx.createLinearGradient(0, -150, 0, 100);
+        hairGradient.addColorStop(0, '#2C1810');
+        hairGradient.addColorStop(0.5, '#3E2318');
+        hairGradient.addColorStop(1, '#523020');
+        ctx.fillStyle = hairGradient;
+        
+        // Long flowing hair
         ctx.beginPath();
-        ctx.ellipse(0, -50, 120, 150, 0, 0, Math.PI * 2);
+        ctx.moveTo(-100, -60);
+        ctx.quadraticCurveTo(-120, 0, -110, 80);
+        ctx.quadraticCurveTo(-100, 120, -80, 150);
+        ctx.lineTo(-60, 160);
+        ctx.quadraticCurveTo(-40, 140, -20, 120);
+        ctx.quadraticCurveTo(0, 100, 0, 80);
+        ctx.quadraticCurveTo(0, 100, 20, 120);
+        ctx.quadraticCurveTo(40, 140, 60, 160);
+        ctx.lineTo(80, 150);
+        ctx.quadraticCurveTo(100, 120, 110, 80);
+        ctx.quadraticCurveTo(120, 0, 100, -60);
+        ctx.quadraticCurveTo(80, -100, 0, -110);
+        ctx.quadraticCurveTo(-80, -100, -100, -60);
+        ctx.closePath();
         ctx.fill();
         
-        // Draw face
+        // Draw neck
         ctx.fillStyle = '#FDBCB4';
+        ctx.fillRect(-30, 80, 60, 40);
+        
+        // Draw face with soft shadow
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetY = 5;
+        
+        const faceGradient = ctx.createRadialGradient(0, -10, 10, 0, 0, 90);
+        faceGradient.addColorStop(0, '#FFE5D9');
+        faceGradient.addColorStop(0.7, '#FDBCB4');
+        faceGradient.addColorStop(1, '#FFB5A0');
+        ctx.fillStyle = faceGradient;
+        
         ctx.beginPath();
-        ctx.ellipse(0, 0, 90, 110, 0, 0, Math.PI * 2);
+        ctx.moveTo(0, -85);
+        ctx.quadraticCurveTo(-85, -85, -85, 0);
+        ctx.quadraticCurveTo(-85, 40, -60, 70);
+        ctx.quadraticCurveTo(-30, 90, 0, 95);
+        ctx.quadraticCurveTo(30, 90, 60, 70);
+        ctx.quadraticCurveTo(85, 40, 85, 0);
+        ctx.quadraticCurveTo(85, -85, 0, -85);
+        ctx.closePath();
         ctx.fill();
+        
+        ctx.shadowColor = 'transparent';
+        
+        // Draw nose
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 5);
+        ctx.quadraticCurveTo(5, 15, 0, 20);
+        ctx.stroke();
         
         // Draw eyes
-        this.drawEyes();
+        this.drawPrettyEyes();
         
         // Draw mouth
-        this.drawMouth();
+        this.drawPrettyMouth();
         
-        // Draw hair front
-        ctx.fillStyle = '#8B4513';
+        // Draw hair front with side bangs
+        ctx.fillStyle = hairGradient;
+        
+        // Center bangs
         ctx.beginPath();
-        ctx.ellipse(0, -80, 100, 80, 0, Math.PI, Math.PI * 2);
+        ctx.moveTo(-50, -85);
+        ctx.quadraticCurveTo(-30, -70, -20, -40);
+        ctx.quadraticCurveTo(-10, -50, 0, -45);
+        ctx.quadraticCurveTo(10, -50, 20, -40);
+        ctx.quadraticCurveTo(30, -70, 50, -85);
+        ctx.quadraticCurveTo(30, -95, 0, -95);
+        ctx.quadraticCurveTo(-30, -95, -50, -85);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Side hair strands
+        ctx.beginPath();
+        ctx.moveTo(-85, -60);
+        ctx.quadraticCurveTo(-90, -20, -85, 20);
+        ctx.quadraticCurveTo(-80, 0, -75, -20);
+        ctx.quadraticCurveTo(-80, -50, -85, -60);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.beginPath();
+        ctx.moveTo(85, -60);
+        ctx.quadraticCurveTo(90, -20, 85, 20);
+        ctx.quadraticCurveTo(80, 0, 75, -20);
+        ctx.quadraticCurveTo(80, -50, 85, -60);
+        ctx.closePath();
         ctx.fill();
         
         // Draw emotion effects
         this.drawEmotionEffects();
         
+        // Add hair highlights
+        ctx.strokeStyle = 'rgba(139, 69, 19, 0.3)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-60, -70);
+        ctx.quadraticCurveTo(-50, -20, -60, 30);
+        ctx.moveTo(60, -70);
+        ctx.quadraticCurveTo(50, -20, 60, 30);
+        ctx.stroke();
+        
         ctx.restore();
     }
     
-    drawEyes() {
+    drawPrettyEyes() {
         const { ctx, state } = this;
         const eyeSpacing = 35;
         const eyeY = -20;
         
-        // Eye whites
-        ctx.fillStyle = '#FFF';
+        // Eye shape (almond)
+        ctx.save();
+        
+        // Left eye
         ctx.beginPath();
-        ctx.ellipse(-eyeSpacing, eyeY, 25, 30 * state.eyeBlink, 0, 0, Math.PI * 2);
-        ctx.ellipse(eyeSpacing, eyeY, 25, 30 * state.eyeBlink, 0, 0, Math.PI * 2);
+        ctx.moveTo(-eyeSpacing - 25, eyeY);
+        ctx.quadraticCurveTo(-eyeSpacing, eyeY - 20 * state.eyeBlink, -eyeSpacing + 25, eyeY);
+        ctx.quadraticCurveTo(-eyeSpacing, eyeY + 15 * state.eyeBlink, -eyeSpacing - 25, eyeY);
+        ctx.closePath();
+        
+        // Eye gradient
+        const eyeGradient = ctx.createRadialGradient(-eyeSpacing, eyeY, 5, -eyeSpacing, eyeY, 25);
+        eyeGradient.addColorStop(0, '#FFFFFF');
+        eyeGradient.addColorStop(0.9, '#F5F5F5');
+        eyeGradient.addColorStop(1, '#E8E8E8');
+        ctx.fillStyle = eyeGradient;
         ctx.fill();
         
-        // Irises (following mouse)
+        // Right eye
+        ctx.beginPath();
+        ctx.moveTo(eyeSpacing - 25, eyeY);
+        ctx.quadraticCurveTo(eyeSpacing, eyeY - 20 * state.eyeBlink, eyeSpacing + 25, eyeY);
+        ctx.quadraticCurveTo(eyeSpacing, eyeY + 15 * state.eyeBlink, eyeSpacing - 25, eyeY);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Irises (following mouse) - only if eyes are open
         if (state.eyeBlink > 0.3) {
-            ctx.fillStyle = '#4A90E2';
+            const irisX = Math.max(-8, Math.min(8, state.eyeX * 0.25));
+            const irisY = Math.max(-5, Math.min(5, state.eyeY * 0.25));
+            
+            // Iris gradient
+            const irisGradient = ctx.createRadialGradient(
+                -eyeSpacing + irisX, eyeY + irisY, 2,
+                -eyeSpacing + irisX, eyeY + irisY, 15
+            );
+            irisGradient.addColorStop(0, '#8B4513');
+            irisGradient.addColorStop(0.3, '#A0522D');
+            irisGradient.addColorStop(0.7, '#CD853F');
+            irisGradient.addColorStop(1, '#DEB887');
+            
+            // Left iris
+            ctx.fillStyle = irisGradient;
             ctx.beginPath();
-            const irisX = Math.max(-10, Math.min(10, state.eyeX * 0.3));
-            const irisY = Math.max(-10, Math.min(10, state.eyeY * 0.3));
-            ctx.arc(-eyeSpacing + irisX, eyeY + irisY, 12, 0, Math.PI * 2);
-            ctx.arc(eyeSpacing + irisX, eyeY + irisY, 12, 0, Math.PI * 2);
+            ctx.arc(-eyeSpacing + irisX, eyeY + irisY, 15 * state.eyeBlink, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Right iris
+            const irisGradient2 = ctx.createRadialGradient(
+                eyeSpacing + irisX, eyeY + irisY, 2,
+                eyeSpacing + irisX, eyeY + irisY, 15
+            );
+            irisGradient2.addColorStop(0, '#8B4513');
+            irisGradient2.addColorStop(0.3, '#A0522D');
+            irisGradient2.addColorStop(0.7, '#CD853F');
+            irisGradient2.addColorStop(1, '#DEB887');
+            ctx.fillStyle = irisGradient2;
+            ctx.beginPath();
+            ctx.arc(eyeSpacing + irisX, eyeY + irisY, 15 * state.eyeBlink, 0, Math.PI * 2);
             ctx.fill();
             
             // Pupils
             ctx.fillStyle = '#000';
             ctx.beginPath();
-            ctx.arc(-eyeSpacing + irisX, eyeY + irisY, 6, 0, Math.PI * 2);
-            ctx.arc(eyeSpacing + irisX, eyeY + irisY, 6, 0, Math.PI * 2);
+            ctx.arc(-eyeSpacing + irisX, eyeY + irisY, 6 * state.eyeBlink, 0, Math.PI * 2);
+            ctx.arc(eyeSpacing + irisX, eyeY + irisY, 6 * state.eyeBlink, 0, Math.PI * 2);
             ctx.fill();
             
-            // Eye sparkle
+            // Eye sparkles
             ctx.fillStyle = '#FFF';
             ctx.beginPath();
-            ctx.arc(-eyeSpacing + irisX + 3, eyeY + irisY - 3, 2, 0, Math.PI * 2);
-            ctx.arc(eyeSpacing + irisX + 3, eyeY + irisY - 3, 2, 0, Math.PI * 2);
+            ctx.arc(-eyeSpacing + irisX + 5, eyeY + irisY - 5, 3, 0, Math.PI * 2);
+            ctx.arc(eyeSpacing + irisX + 5, eyeY + irisY - 5, 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(-eyeSpacing + irisX - 3, eyeY + irisY + 3, 2, 0, Math.PI * 2);
+            ctx.arc(eyeSpacing + irisX - 3, eyeY + irisY + 3, 2, 0, Math.PI * 2);
             ctx.fill();
         }
         
-        // Eyelashes
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
+        // Eyelids and lashes
+        ctx.strokeStyle = '#2C1810';
+        ctx.lineWidth = 2.5;
+        
+        // Upper eyelid
         ctx.beginPath();
-        ctx.arc(-eyeSpacing, eyeY, 25, -0.2 * Math.PI, 0.2 * Math.PI);
-        ctx.arc(eyeSpacing, eyeY, 25, 0.8 * Math.PI, 1.2 * Math.PI);
+        ctx.moveTo(-eyeSpacing - 25, eyeY);
+        ctx.quadraticCurveTo(-eyeSpacing, eyeY - 20 * state.eyeBlink, -eyeSpacing + 25, eyeY);
+        ctx.moveTo(eyeSpacing - 25, eyeY);
+        ctx.quadraticCurveTo(eyeSpacing, eyeY - 20 * state.eyeBlink, eyeSpacing + 25, eyeY);
         ctx.stroke();
+        
+        // Eyelashes
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 5; i++) {
+            const angle = -0.3 + i * 0.15;
+            ctx.beginPath();
+            ctx.moveTo(-eyeSpacing + Math.cos(angle) * 20, eyeY - 10 * state.eyeBlink + Math.sin(angle) * 20);
+            ctx.lineTo(-eyeSpacing + Math.cos(angle) * 25, eyeY - 13 * state.eyeBlink + Math.sin(angle) * 25);
+            ctx.moveTo(eyeSpacing + Math.cos(Math.PI - angle) * 20, eyeY - 10 * state.eyeBlink + Math.sin(Math.PI - angle) * 20);
+            ctx.lineTo(eyeSpacing + Math.cos(Math.PI - angle) * 25, eyeY - 13 * state.eyeBlink + Math.sin(Math.PI - angle) * 25);
+            ctx.stroke();
+        }
+        
+        ctx.restore();
     }
     
     drawMouth() {

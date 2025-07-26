@@ -1,0 +1,10 @@
+{
+	"type": "Live2D Model Setting",
+	"name": "boy",
+	"model": "boy.moc",
+	"textures": [
+		"boy.1024/texture_00.png",
+		"boy.1024/texture_01.png",
+		"boy.1024/texture_02.png"
+	]
+}

@@ -3,6 +3,7 @@ import { BellaAI } from './core.js';
 import { ChatInterface } from './chatInterface.js';
 import { VideoManager } from './videoManager.js';
 import { Live2DAvatar } from './live2dIntegration.js';
+import { VideoAvatar } from './videoAvatar.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
     // --- Get all necessary DOM elements first ---

@@ -1,0 +1,9 @@
+{
+	"type": "Live2D Model Setting",
+	"name": "Yuzuki_Yukari",
+	"model": "Yuzuki_Yukari.moc",
+	"textures": [
+		"Yuzuki_Yukari.2048/texture_00.png",
+		"Yuzuki_Yukari.2048/texture_01.png"
+	]
+}

@@ -1,0 +1,23 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "Shikifacerig.moc3",
+		"Textures": [
+			"Shikifacerig.4096/texture_00.png"
+		],
+		"Physics": "Shikifacerig.physics3.json",
+		"DisplayInfo": "Shikifacerig.cdi3.json"
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		}
+	]
+}

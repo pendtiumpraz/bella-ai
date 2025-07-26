@@ -1,0 +1,11 @@
+{
+	"type": "Live2D Model Setting",
+	"name": "epsilon_variant",
+	"model": "epsilon_variant.moc",
+	"textures": [
+		"epsilon_variant.1024/texture_00.png",
+		"epsilon_variant.1024/texture_01.png",
+		"epsilon_variant.1024/texture_02.png",
+		"epsilon_variant.1024/texture_03.png"
+	]
+}

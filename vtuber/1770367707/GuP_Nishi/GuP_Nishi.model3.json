@@ -1,0 +1,18 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "GuP_Nishi.moc3",
+		"Textures": [
+			"GuP_Nishi.8192/texture_00.png"
+		],
+		"Physics": "GuP_Nishi.physics3.json",
+		"DisplayInfo": "GuP_Nishi.cdi3.json"
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": []
+		}
+	]
+}

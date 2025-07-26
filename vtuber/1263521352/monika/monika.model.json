@@ -1,0 +1,8 @@
+{
+	"version":"Sample 1.0.0",
+	"model":"D:/Steam/steamapps/common/FaceRig/Mod/VP/PC_Common/Objects/monika/monika.moc",
+	"textures":[
+		"D:/Steam/steamapps/common/FaceRig/Mod/VP/PC_Common/Objects/monika/monika.2048/texture_00.png"
+	],
+	"physics":"D:/Steam/steamapps/common/FaceRig/Mod/VP/PC_Common/Objects/monika/monika.physics.json"
+}

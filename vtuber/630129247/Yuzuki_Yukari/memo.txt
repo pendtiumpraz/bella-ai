@@ -1,0 +1,12 @@
+PARAM_CHEEK 赤面
+PARAM_RAGE　怒りマーク
+PARAM_TEAR　涙目
+PARAM_SWEAT　汗
+PARAM_pupil　瞳縮小
+PARAM_pallor　顔蒼白
+PARAM_hi-lite　目ハイライト消し
+PARAM_Smile　目笑顔固定
+PARAM_Shiitake　目がしいたけ
+PARAM_Jito_eyes　ジト目
+PARAM_puff_out　頬を膨らませる
+　

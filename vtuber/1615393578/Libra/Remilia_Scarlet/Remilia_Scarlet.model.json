@@ -1,0 +1,8 @@
+{
+	"type": "Live2D Model Setting",
+	"name": "remilia_m",
+	"model": "remilia_m.moc",
+	"textures": [
+		"remilia_m.2048/texture_00.png"
+	]
+}

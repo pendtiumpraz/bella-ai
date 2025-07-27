@@ -6,6 +6,7 @@
     <title>Bella - Your AI Companion</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="chatStyles.css">
+    <link rel="stylesheet" href="voiceUI.css">
     <!-- 引入 Font Awesome 图标库，用于麦克风图标 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
@@ -30,7 +31,7 @@
     <div class="avatar-container" id="avatar-container">
         <canvas id="bella-avatar"></canvas>
         <!-- VRM Avatar Option -->
-        <iframe id="vrm-avatar" src="vrm-avatar.html" style="display: none;"></iframe>
+        <iframe id="vrm-avatar" src="vrm-avatar-fixed.html" style="display: none;"></iframe>
     </div>
     
     <!-- 视频背景 -->
@@ -48,17 +49,7 @@
     <!-- 内容层，覆盖在视频之上 -->
     <div class="content-overlay">
 
-        <!-- 语音识别结果显示区域 -->
-        <div class="transcript-container">
-            <p id="transcript"></p>
-        </div>
-
-        <!-- 底部麦克风和链接 -->
-        <footer class="bottom-bar">
-            <button class="mic-button" id="mic-button" aria-label="Start Listening">
-                <i class="fas fa-microphone"></i>
-            </button>
-        </footer>
+        <!-- Voice UI will be added dynamically by JavaScript -->
 
         <!-- 聊天控制面板 -->
         <div class="chat-control-panel">

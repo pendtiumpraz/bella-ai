@@ -86,10 +86,15 @@
     <div class="model-selector">
         <label>Select Model:</label>
         <select id="model-select">
+            <option value="">-- Select Model --</option>
             <option value="vtuber/Galih Hoodie.vrm">Galih Hoodie</option>
             <option value="vtuber/Galih Hoodie Edmuku.vrm">Galih Hoodie Edmuku</option>
-            <option value="vtuber/Galih Hoodie Esteh.vrm" selected>Galih Hoodie Esteh</option>
+            <option value="vtuber/Galih Hoodie Esteh.vrm">Galih Hoodie Esteh</option>
             <option value="vtuber/Galih T shirt Aveecena.vrm">Galih T-shirt</option>
+            <option value="vtuber/Ai_Hoshino_.vrm">Ai Hoshino</option>
+            <option value="vtuber/Anya_Forger.vrm">Anya Forger</option>
+            <option value="vtuber/Nezuko_kamado.vrm">Nezuko Kamado</option>
+            <option value="vtuber/Fern.vrm">Fern</option>
         </select>
     </div>
     
@@ -107,21 +112,32 @@
     <!-- Three.js and VRM libraries -->
     <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
     <script>
-        // After THREE is loaded, we need to expose it globally for the loader scripts
-        window.THREE = THREE;
+        // Wait for THREE to load before loading other scripts
+        window.addEventListener('load', function() {
+            // Dynamically load GLTFLoader
+            const gltfScript = document.createElement('script');
+            gltfScript.src = 'https://unpkg.com/three@0.149.0/examples/js/loaders/GLTFLoader.js';
+            gltfScript.onload = function() {
+                console.log('GLTFLoader loaded successfully');
+                // Then load VRM
+                const vrmScript = document.createElement('script');
+                vrmScript.src = 'https://unpkg.com/@pixiv/three-vrm@1.0.11/lib/three-vrm.min.js';
+                vrmScript.onload = function() {
+                    console.log('VRM library loaded successfully');
+                };
+                document.head.appendChild(vrmScript);
+            };
+            document.head.appendChild(gltfScript);
+        });
     </script>
-    <script src="https://unpkg.com/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://unpkg.com/@pixiv/three-vrm@1.0.11/lib/three-vrm.min.js"></script>
 
     <script>
-        // Check if libraries are loaded
-        // Wait for all scripts to load
-        window.addEventListener('load', () => {
+        // Initialize VRM after libraries are loaded
+        window.initVRM = function() {
+            console.log('Initializing VRM...');
             console.log('THREE loaded:', typeof THREE !== 'undefined');
             console.log('THREE.GLTFLoader loaded:', typeof THREE !== 'undefined' && typeof THREE.GLTFLoader !== 'undefined');
             console.log('THREE.VRM loaded:', typeof THREE !== 'undefined' && typeof THREE.VRM !== 'undefined');
-            console.log('Available THREE properties:', Object.keys(THREE).filter(k => k.includes('Loader')).join(', '));
-        });
         
         // Three.js setup
         const scene = new THREE.Scene();
@@ -137,7 +153,7 @@
         });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
         
         // Lighting
         const light = new THREE.DirectionalLight(0xffffff, 1);
@@ -171,6 +187,7 @@
         let audioContext;
         let analyser;
         let isLipSyncing = false;
+        let animationId = null;
         
         // Load VRM Model
         async function loadVRM(modelPath) {
@@ -203,9 +220,22 @@
                     );
                 });
                 
-                // Remove old model
+                // Remove old model and dispose properly
                 if (currentVRM) {
                     scene.remove(currentVRM.scene);
+                    // Dispose of VRM resources
+                    if (currentVRM.scene) {
+                        currentVRM.scene.traverse((child) => {
+                            if (child.geometry) child.geometry.dispose();
+                            if (child.material) {
+                                if (Array.isArray(child.material)) {
+                                    child.material.forEach(mat => mat.dispose());
+                                } else {
+                                    child.material.dispose();
+                                }
+                            }
+                        });
+                    }
                 }
                 
                 // Convert to VRM
@@ -243,7 +273,7 @@
             let breathingPhase = 0;
             
             function animate() {
-                requestAnimationFrame(animate);
+                animationId = requestAnimationFrame(animate);
                 
                 const deltaTime = clock.getDelta();
                 
@@ -502,11 +532,47 @@
             } else if (event.data.type === 'speak' && event.data.text) {
                 console.log('Speaking from parent:', event.data.text);
                 speak(event.data.text);
+            } else if (event.data.type === 'cleanup') {
+                // Cleanup WebGL context when switching avatars
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+                if (currentVRM) {
+                    scene.remove(currentVRM.scene);
+                    currentVRM.scene.traverse((child) => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(mat => mat.dispose());
+                            } else {
+                                child.material.dispose();
+                            }
+                        }
+                    });
+                }
+                renderer.dispose();
+                renderer.forceContextLoss();
+                renderer.context = null;
+                renderer.domElement = null;
             }
         });
         
-        // Load default model - Galih Hoodie Esteh
-        loadVRM('vtuber/Galih Hoodie Esteh.vrm');
+        // Don't load default model - wait for message from parent
+        // loadVRM('vtuber/Galih Hoodie Esteh.vrm');
+        }; // End of initVRM function
+        
+        // Call initVRM when VRM library is loaded
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                if (typeof THREE !== 'undefined' && typeof THREE.VRM !== 'undefined') {
+                    window.initVRM();
+                } else {
+                    console.error('Libraries not loaded yet, waiting...');
+                    // Retry after delay
+                    setTimeout(window.initVRM, 2000);
+                }
+            }, 1000);
+        });
     </script>
 </body>
 </html>

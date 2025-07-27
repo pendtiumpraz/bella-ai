@@ -65,9 +65,9 @@
         // Scene setup
         const scene = new THREE.Scene();
         
-        // Camera
+        // Camera - Zoom in closer, focus on face
         const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 20);
-        camera.position.set(0, 1.4, 3);
+        camera.position.set(0, 1.5, 1.5); // Y position at face level, Z closer for zoom in
         
         // Renderer
         const renderer = new THREE.WebGLRenderer({ 
@@ -76,7 +76,7 @@
         });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
         document.body.appendChild(renderer.domElement);
         
         // Lights
@@ -96,8 +96,14 @@
         let mouseY = 0;
         let targetRotationY = 0;
         let currentRotationY = 0;
-        let lookAtX = 0;
-        let lookAtY = 0;
+        let targetLookAtX = 0;
+        let targetLookAtY = 0;
+        let currentLookAtX = 0;
+        let currentLookAtY = 0;
+        
+        // Create look at target
+        const lookAtTarget = new THREE.Object3D();
+        scene.add(lookAtTarget);
 
         // Track mouse for eye movement
         document.addEventListener('mousemove', (event) => {
@@ -109,9 +115,9 @@
                 targetRotationY = mouseX * Math.PI;
             }
             
-            // For eye tracking
-            lookAtX = mouseX * 2;
-            lookAtY = mouseY + 1.4;
+            // Update look at target position
+            targetLookAtX = mouseX * 2;
+            targetLookAtY = mouseY * 0.5 + 1.5; // Match camera Y position
         });
 
         renderer.domElement.addEventListener('wheel', (event) => {
@@ -152,28 +158,34 @@
                 // Rotate model to face camera (180 degrees)
                 vrm.scene.rotation.y = Math.PI;
                 
+                // Setup VRM lookAt
+                if (vrm.lookAt) {
+                    vrm.lookAt.target = lookAtTarget;
+                    vrm.lookAt.autoUpdate = true;
+                }
+                
                 // Reset to default pose (T-pose to relaxed pose)
                 if (vrm.humanoid) {
-                    // Lower arms to more natural position
+                    // Lower arms straight down to sides
                     const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
                     const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
                     
                     if (leftUpperArm) {
-                        leftUpperArm.rotation.z = Math.PI / 4; // 45 degrees
+                        leftUpperArm.rotation.z = Math.PI / 2.3; // About 78 degrees - arms straight down
                     }
                     if (rightUpperArm) {
-                        rightUpperArm.rotation.z = -Math.PI / 4; // -45 degrees
+                        rightUpperArm.rotation.z = -Math.PI / 2.3; // About -78 degrees - arms straight down
                     }
                     
-                    // Slightly bend elbows
+                    // Keep arms straight, no elbow bend
                     const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
                     const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
                     
                     if (leftLowerArm) {
-                        leftLowerArm.rotation.y = -Math.PI / 8; // Slight bend
+                        leftLowerArm.rotation.y = 0; // Straight
                     }
                     if (rightLowerArm) {
-                        rightLowerArm.rotation.y = Math.PI / 8; // Slight bend
+                        rightLowerArm.rotation.y = 0; // Straight
                     }
                 }
                 
@@ -217,27 +229,52 @@
                 // Apply body rotation (keep facing forward + mouse rotation)
                 currentVrm.scene.rotation.y = Math.PI + currentRotationY;
                 
-                // Eye tracking - make eyes follow mouse
-                // VRM lookAt needs a proper setup, for now disable to prevent errors
+                // Smooth look at interpolation for eye tracking
+                currentLookAtX += (targetLookAtX - currentLookAtX) * 0.1;
+                currentLookAtY += (targetLookAtY - currentLookAtY) * 0.1;
+                
+                // Update look at target position
+                if (!isSpeaking) {
+                    // Follow mouse when not speaking
+                    lookAtTarget.position.set(currentLookAtX, currentLookAtY, 2);
+                } else {
+                    // Look forward with natural head movement when speaking
+                    const headSway = Math.sin(clock.elapsedTime * 2) * 0.1;
+                    const headNod = Math.sin(clock.elapsedTime * 3) * 0.05;
+                    lookAtTarget.position.set(headSway, 1.5 + headNod, 2);
+                }
                 
                 // Breathing animation
-                const breathing = Math.sin(clock.elapsedTime * 2) * 0.002;
+                const breathing = Math.sin(clock.elapsedTime * 2) * 0.003;
                 if (currentVrm.humanoid) {
                     const spine = currentVrm.humanoid.getNormalizedBoneNode('spine');
                     const chest = currentVrm.humanoid.getNormalizedBoneNode('upperChest') || 
                                 currentVrm.humanoid.getNormalizedBoneNode('chest');
+                    const hips = currentVrm.humanoid.getNormalizedBoneNode('hips');
                     
                     if (spine) {
                         spine.position.y = breathing;
+                        
+                        // Micro movements while speaking
+                        if (isSpeaking) {
+                            const torsoRotation = Math.sin(clock.elapsedTime * 1.5) * 0.05;
+                            spine.rotation.y = torsoRotation;
+                        }
                     }
                     if (chest) {
                         chest.position.y = breathing * 0.5;
                     }
                     
-                    // Subtle idle motion - slight swaying
-                    const swayAmount = 0.02;
-                    const sway = Math.sin(clock.elapsedTime * 0.5) * swayAmount;
+                    // Subtle idle motion - body swaying
+                    const swayAmount = isSpeaking ? 0.03 : 0.015;
+                    const sway = Math.sin(clock.elapsedTime * 0.7) * swayAmount;
                     currentVrm.scene.position.x = sway;
+                    
+                    // Hip movement when speaking
+                    if (hips && isSpeaking) {
+                        const hipSway = Math.sin(clock.elapsedTime * 0.8) * 0.01;
+                        hips.position.x = hipSway;
+                    }
                 }
                 
                 // Auto blink
@@ -273,31 +310,63 @@
         let isSpeaking = false;
         let speakingTimer = 0;
         
-        function startSpeaking(text) {
+        function startSpeaking(text, emotion = 'neutral') {
             isSpeaking = true;
             info.textContent = 'Speaking...';
             
-            // Simple lip sync simulation
-            const words = text.split(' ').length;
-            const duration = Math.min(words * 300, 5000); // Estimate duration
+            // Analyze text for vowels
+            const vowels = text.match(/[aeiouAEIOU]/g) || [];
+            const duration = Math.min(text.length * 60, 8000);
             
+            let vowelIndex = 0;
+            
+            // Set facial expression if provided
+            if (emotion !== 'neutral') {
+                setExpression(emotion);
+            }
+            
+            // Enhanced lip sync
             const lipSyncInterval = setInterval(() => {
-                if (currentVrm && currentVrm.expressionManager) {
-                    const mouthValue = Math.random() * 0.8;
-                    // Try different mouth shapes
-                    const mouthShapes = ['aa', 'ih', 'ou', 'ee', 'oh'];
-                    const randomMouth = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
+                if (!currentVrm || !currentVrm.expressionManager) return;
+                
+                // Vowel to mouth shape mapping
+                const vowelShapeMap = {
+                    'a': 'aa',
+                    'e': 'ee', 
+                    'i': 'ih',
+                    'o': 'oh',
+                    'u': 'ou'
+                };
+                
+                // Reset mouth shapes
+                ['aa', 'ih', 'ou', 'ee', 'oh'].forEach(shape => {
+                    if (currentVrm.expressionManager.getValue(shape) !== undefined) {
+                        currentVrm.expressionManager.setValue(shape, 0);
+                    }
+                });
+                
+                // Get current vowel and map to shape
+                if (vowelIndex < vowels.length) {
+                    const currentVowel = vowels[vowelIndex].toLowerCase();
+                    const shape = vowelShapeMap[currentVowel] || 'aa';
+                    const intensity = 0.6 + Math.random() * 0.3;
                     
-                    if (currentVrm.expressionManager.getValue(randomMouth) !== undefined) {
-                        currentVrm.expressionManager.setValue(randomMouth, mouthValue);
+                    if (currentVrm.expressionManager.getValue(shape) !== undefined) {
+                        currentVrm.expressionManager.setValue(shape, intensity);
                     }
                 }
-            }, 100);
+                
+                vowelIndex++;
+                if (vowelIndex >= vowels.length) {
+                    vowelIndex = 0; // Loop if needed
+                }
+            }, 150);
             
             setTimeout(() => {
                 clearInterval(lipSyncInterval);
                 isSpeaking = false;
-                // Close mouth
+                
+                // Close mouth smoothly
                 if (currentVrm && currentVrm.expressionManager) {
                     ['aa', 'ih', 'ou', 'ee', 'oh'].forEach(shape => {
                         if (currentVrm.expressionManager.getValue(shape) !== undefined) {
@@ -305,6 +374,14 @@
                         }
                     });
                 }
+                
+                // Reset expression after speaking
+                if (emotion !== 'neutral') {
+                    setTimeout(() => {
+                        setExpression('neutral');
+                    }, 1000);
+                }
+                
                 info.textContent = 'Ready';
             }, duration);
         }
@@ -338,10 +415,23 @@
                 loadVRM(event.data.path);
             } else if (event.data.type === 'speak') {
                 console.log('Received speak message:', event.data.text);
-                startSpeaking(event.data.text);
+                const emotion = event.data.emotion || 'neutral';
+                startSpeaking(event.data.text, emotion);
             } else if (event.data.type === 'expression') {
                 console.log('Received expression message:', event.data.emotion);
                 setExpression(event.data.emotion);
+            } else if (event.data.type === 'cleanup') {
+                console.log('Received cleanup message');
+                // Cleanup WebGL resources
+                if (currentVrm) {
+                    scene.remove(currentVrm.scene);
+                    VRMUtils.deepDispose(currentVrm.scene);
+                    currentVrm = null;
+                }
+                if (renderer) {
+                    renderer.dispose();
+                    renderer.forceContextLoss();
+                }
             }
         });
 

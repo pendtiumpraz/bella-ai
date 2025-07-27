@@ -138,6 +138,15 @@ class CloudAPIService {
 
     // 构建贝拉的个性化系统提示
     getBellaSystemPrompt() {
+        // Use custom system prompt if set, otherwise use default
+        if (this.systemPrompt) {
+            return {
+                role: 'system',
+                content: this.systemPrompt
+            };
+        }
+        
+        // Default prompt using dynamic assistant name
         return {
             role: 'system',
             content: `Kamu adalah ${this.assistantName}, partner AI yang hangat, pintar, dan elegan. Karakteristikmu adalah:
@@ -401,13 +410,13 @@ Selalu pertahankan kepribadian yang hangat dan elegan ini.`
         // Add conversation history
         this.conversationHistory.forEach(msg => {
             parts.push({
-                text: `${msg.role === 'user' ? 'User' : 'Bella'}: ${msg.content}\n`
+                text: `${msg.role === 'user' ? 'User' : this.assistantName}: ${msg.content}\n`
             });
         });
         
         // Add current user message
         parts.push({
-            text: `User: ${userMessage}\nBella:`
+            text: `User: ${userMessage}\n${this.assistantName}:`
         });
 
         const url = `${config.baseURL}?key=${config.apiKey}`;

@@ -3,14 +3,13 @@ import { BellaAI } from './core.js';
 import { ChatInterface } from './chatInterface.js';
 import { VideoManager } from './videoManager.js';
 import { VideoAvatar } from './videoAvatar.js';
+import { VoiceUI } from './voiceUI.js';
 
 document.addEventListener('DOMContentLoaded', async function() {
     // --- Get all necessary DOM elements first ---
-    const transcriptDiv = document.getElementById('transcript');
     const loadingScreen = document.getElementById('loading-screen');
     const video1 = document.getElementById('video1');
     const video2 = document.getElementById('video2');
-    const micButton = document.getElementById('mic-button');
 
 
     // --- AI Core Initialization ---
@@ -18,6 +17,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     let chatInterface;
     let videoManager;
     let bellaAvatar;
+    let voiceUI;
     let isAvatarMode = true; // Start with avatar mode by default
     
     // Initialize video emotion manager
@@ -32,6 +32,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     const avatarContainer = document.getElementById('avatar-container');
     const videoContainer = document.getElementById('video-container');
     
+    // Track current avatar info
+    let currentAvatarName = 'Bella';
+    let currentAvatarGender = 'female'; // default
+    
     // Hide the video mode toggle button
     if (toggleBtn) {
         toggleBtn.style.display = 'none';
@@ -43,6 +47,28 @@ document.addEventListener('DOMContentLoaded', async function() {
         avatarContainer.style.display = 'flex';
         video1.pause();
         video2.pause();
+        
+        // Auto load Galih Esteh as default avatar
+        setTimeout(() => {
+            const defaultAvatar = {
+                name: 'Galih Hoodie Esteh',
+                path: 'vtuber/Galih Hoodie Esteh.vrm',
+                type: 'VRM',
+                description: 'Galih dengan Hoodie Esteh'
+            };
+            
+            // Update gender for default avatar
+            currentAvatarName = defaultAvatar.name;
+            currentAvatarGender = getAvatarGender(defaultAvatar.name);
+            
+            // Trigger avatar selection event
+            window.postMessage({
+                type: 'avatarSelected',
+                avatar: defaultAvatar
+            }, '*');
+            
+            console.log('Auto-loading default avatar: Galih Hoodie Esteh');
+        }, 2000); // Wait 2 seconds for everything to initialize
     }
     
     toggleBtn?.addEventListener('click', () => {
@@ -79,6 +105,69 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
     
+    // Helper function to determine avatar gender
+    function getAvatarGender(avatarName) {
+        const femaleAvatars = ['Ai Hoshino', 'Anya Forger', 'Nezuko Kamado', 'Fern', 'Bella'];
+        const maleAvatars = ['Galih Hoodie Esteh', 'Galih Hoodie', 'Galih Hoodie Edmuku', 'Galih T-shirt Aveecena'];
+        
+        if (femaleAvatars.includes(avatarName)) {
+            return 'female';
+        } else if (maleAvatars.includes(avatarName)) {
+            return 'male';
+        }
+        // Default to female if unknown
+        return 'female';
+    }
+    
+    // Helper function to get appropriate TTS settings
+    function getTTSSettings(gender) {
+        if (gender === 'male') {
+            return {
+                pitch: 0.8,  // Lower pitch for male voice
+                rate: 0.9
+            };
+        } else {
+            return {
+                pitch: 1.2,  // Higher pitch for female voice
+                rate: 0.9
+            };
+        }
+    }
+    
+    // Helper function to select best voice for gender
+    function selectBestVoice(voices, preferredLang, gender) {
+        // First try to find Indonesian voice with matching gender
+        let bestVoice = voices.find(voice => {
+            const isIndonesian = voice.lang.startsWith(preferredLang);
+            const voiceName = voice.name.toLowerCase();
+            
+            if (gender === 'male') {
+                return isIndonesian && (voiceName.includes('male') || voiceName.includes('man'));
+            } else {
+                return isIndonesian && (voiceName.includes('female') || voiceName.includes('woman'));
+            }
+        });
+        
+        // If no gender-specific Indonesian voice, try any Indonesian voice
+        if (!bestVoice) {
+            bestVoice = voices.find(voice => voice.lang.startsWith(preferredLang));
+        }
+        
+        // If still no voice, try to find any voice with matching gender
+        if (!bestVoice) {
+            bestVoice = voices.find(voice => {
+                const voiceName = voice.name.toLowerCase();
+                if (gender === 'male') {
+                    return voiceName.includes('male') || voiceName.includes('man');
+                } else {
+                    return voiceName.includes('female') || voiceName.includes('woman');
+                }
+            });
+        }
+        
+        return bestVoice;
+    }
+    
     // Helper function to clean up all avatar displays
     function hideAllAvatars() {
         // Hide canvas avatar
@@ -100,7 +189,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         const avatarWindow = window.open('avatarSelector.html', 'AvatarSelector', 'width=1200,height=800');
         
         // Listen for avatar selection
-        window.addEventListener('message', (event) => {
+        window.addEventListener('message', async (event) => {
             if (event.data.type === 'useAlternativeViewer') {
                 // Switch to alternative viewer if SDK fails
                 const live2dFrame = document.getElementById('live2d-avatar');
@@ -112,6 +201,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                 const selectedAvatar = event.data.avatar;
                 console.log('Avatar selected:', selectedAvatar);
                 
+                // Update current avatar info
+                currentAvatarName = selectedAvatar.name;
+                currentAvatarGender = getAvatarGender(selectedAvatar.name);
+                console.log(`Avatar: ${currentAvatarName}, Gender: ${currentAvatarGender}`);
+                
                 // Update chat interface with avatar name
                 if (chatInterface) {
                     chatInterface.updateAssistant(selectedAvatar.name, '🎭');
@@ -122,6 +216,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                     // Add greeting from new avatar
                     setTimeout(() => {
                         const greetings = {
+                            'Galih Hoodie Esteh': 'Halo bro! Aku Galih, suka banget sama es teh! Mau ngobrol atau butuh bantuan apa nih? 🧋',
+                            'Galih Hoodie': 'Hai! Aku Galih, gimana kabarnya hari ini? Ada yang bisa kubantu? 😎',
+                            'Galih Hoodie Edmuku': 'Yo! Galih disini, siap membantu kamu! Apa yang bisa kulakukan? 🎵',
+                            'Galih T-shirt Aveecena': 'Halo! Aku Galih dari Aveecena. Ada project seru yang mau dikerjain bareng? 💻',
                             'Ai Hoshino': 'Halo! Aku Ai Hoshino dari B-Komachi! Senang bertemu denganmu! ✨',
                             'Anya Forger': 'Waku waku! Anya suka kacang! Mau main sama Anya? 🥜',
                             'Nezuko Kamado': 'Mmm... mmm! *mengangguk senang* 🎋',
@@ -140,6 +238,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                     
                     // Set personality based on character
                     const personalities = {
+                        'Galih Hoodie Esteh': 'Kamu adalah Galih, cowok santai yang suka banget sama es teh. Kamu friendly, humoris, dan suka ngobrol casual. Gunakan bahasa gaul Indonesia yang santai.',
+                        'Galih Hoodie': 'Kamu adalah Galih, cowok cool dengan hoodie. Kamu asik diajak ngobrol, supportive, dan suka membantu teman-teman.',
+                        'Galih Hoodie Edmuku': 'Kamu adalah Galih, suka musik EDM dan party. Kamu energetic, fun, dan suka bikin suasana jadi seru.',
+                        'Galih T-shirt Aveecena': 'Kamu adalah Galih dari Aveecena. Kamu tech-savvy, suka coding, dan passionate tentang teknologi.',
                         'Ai Hoshino': 'Kamu adalah Ai Hoshino, idol dari grup B-Komachi. Kamu ceria, penuh semangat, dan selalu berusaha membuat fans senang.',
                         'Anya Forger': 'Kamu adalah Anya Forger dari Spy x Family. Kamu anak kecil yang lucu, suka kacang, dan bisa baca pikiran. Gunakan kata "waku waku" saat excited.',
                         'Nezuko Kamado': 'Kamu adalah Nezuko Kamado dari Demon Slayer. Kamu tidak bisa bicara banyak, hanya "mmm" atau anggukan, tapi sangat peduli dan protektif.',
@@ -154,13 +256,21 @@ document.addEventListener('DOMContentLoaded', async function() {
                 // Hide all avatars first
                 hideAllAvatars();
                 
+                // Send cleanup message to current VRM iframe if exists
+                const currentVrmFrame = document.getElementById('vrm-avatar');
+                if (currentVrmFrame && currentVrmFrame.contentWindow && currentVrmFrame.style.display !== 'none') {
+                    currentVrmFrame.contentWindow.postMessage({ type: 'cleanup' }, '*');
+                    // Give time for cleanup
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
                 // Handle different avatar types
                 if (selectedAvatar.type === 'VRM') {
                     console.log('Switching to VRM model:', selectedAvatar.name);
                     
-                    // Show VRM iframe with interactive version
+                    // Show VRM iframe
                     const vrmFrame = document.getElementById('vrm-avatar');
-                    vrmFrame.src = 'vrm-interactive.html'; // Use interactive version
+                    // Keep using vrm-avatar.html
                     vrmFrame.style.display = 'block';
                     
                     // Force style update
@@ -220,9 +330,27 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.error('聊天界面初始化失败:', error);
     }
     
+    // Initialize Voice UI
+    try {
+        voiceUI = new VoiceUI();
+        console.log('Voice UI initialized successfully');
+        
+        // Set up voice UI callbacks
+        voiceUI.onMicClick = () => {
+            // This will be handled by speech recognition below
+        };
+        
+        voiceUI.onVolumeChange = (type, value) => {
+            if (type === 'output' && 'speechSynthesis' in window) {
+                // Adjust TTS volume
+                window.speechSynthesisVolume = value;
+            }
+        };
+    } catch (error) {
+        console.error('Failed to initialize Voice UI:', error);
+    }
+    
     // 然后尝试初始化AI核心
-    micButton.disabled = true;
-    transcriptDiv.textContent = 'Sedang membangunkan inti Bella...';
     try {
         bellaAI = await BellaAI.getInstance();
         console.log('Bella AI 初始化成功');
@@ -240,14 +368,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                     if ('speechSynthesis' in window) {
                         const utterance = new SpeechSynthesisUtterance(response);
                         utterance.lang = 'id-ID';
-                        utterance.rate = 0.9;
-                        utterance.pitch = 1.2;
+                        const ttsSettings = getTTSSettings(currentAvatarGender);
+                        utterance.rate = ttsSettings.rate;
+                        utterance.pitch = ttsSettings.pitch;
                         utterance.volume = 0.8;
                         
                         const voices = window.speechSynthesis.getVoices();
-                        const indonesianVoice = voices.find(voice => voice.lang.startsWith('id'));
-                        if (indonesianVoice) {
-                            utterance.voice = indonesianVoice;
+                        const bestVoice = selectBestVoice(voices, 'id', currentAvatarGender);
+                        if (bestVoice) {
+                            utterance.voice = bestVoice;
+                            console.log(`Using voice: ${bestVoice.name} for ${currentAvatarGender} avatar`);
                         }
                         
                         // Sync avatar mouth with speech
@@ -287,6 +417,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                                     bellaAvatar.stopSpeaking();
                                 };
                             }
+                        }
+                        
+                        // Start speaking animation in Voice UI if available
+                        if (voiceUI) {
+                            voiceUI.startSpeaking();
+                            
+                            utterance.onend = () => {
+                                voiceUI.stopSpeaking();
+                                voiceUI.setStatus('Ready');
+                            };
                         }
                         
                         window.speechSynthesis.speak(utterance);
@@ -329,11 +469,15 @@ document.addEventListener('DOMContentLoaded', async function() {
             };
         }
         
-        micButton.disabled = false;
-        transcriptDiv.textContent = 'Bella sudah siap, klik mikrofon untuk mulai bicara.';
+        // Voice UI is ready
+        if (voiceUI) {
+            voiceUI.setStatus('AI Ready');
+        }
     } catch (error) {
         console.error('Failed to initialize Bella AI:', error);
-        transcriptDiv.textContent = 'Model lokal gagal dimuat, menggunakan cloud API.';
+        if (voiceUI) {
+            voiceUI.setStatus('Using cloud AI');
+        }
         
         // Buat instance BellaAI tanpa model lokal
         bellaAI = await BellaAI.getInstance();
@@ -351,14 +495,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                     if ('speechSynthesis' in window) {
                         const utterance = new SpeechSynthesisUtterance(response);
                         utterance.lang = 'id-ID';
-                        utterance.rate = 0.9;
-                        utterance.pitch = 1.2;
+                        const ttsSettings = getTTSSettings(currentAvatarGender);
+                        utterance.rate = ttsSettings.rate;
+                        utterance.pitch = ttsSettings.pitch;
                         utterance.volume = 0.8;
                         
                         const voices = window.speechSynthesis.getVoices();
-                        const indonesianVoice = voices.find(voice => voice.lang.startsWith('id'));
-                        if (indonesianVoice) {
-                            utterance.voice = indonesianVoice;
+                        const bestVoice = selectBestVoice(voices, 'id', currentAvatarGender);
+                        if (bestVoice) {
+                            utterance.voice = bestVoice;
+                            console.log(`Using voice: ${bestVoice.name} for ${currentAvatarGender} avatar`);
                         }
                         
                         // Sync avatar mouth with speech
@@ -400,6 +546,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                             }
                         }
                         
+                        // Start speaking animation in Voice UI if available
+                        if (voiceUI) {
+                            voiceUI.startSpeaking();
+                            
+                            utterance.onend = () => {
+                                voiceUI.stopSpeaking();
+                                voiceUI.setStatus('Ready');
+                            };
+                        }
+                        
                         window.speechSynthesis.speak(utterance);
                     }
                     
@@ -438,9 +594,6 @@ document.addEventListener('DOMContentLoaded', async function() {
                 bellaAI.cloudAPI.setAPIKey(provider, apiKey);
             };
         }
-        
-        // 禁用语音功能，但保持界面可用
-        micButton.disabled = true;
     }
 
     // --- Loading screen handling ---
@@ -580,19 +733,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
 
-    // --- 语音识别核心 ---
+    // --- Speech Recognition with Voice UI ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition;
+    let isListening = false;
 
-    // 检查浏览器是否支持语音识别
-    if (SpeechRecognition) {
+    // Setup speech recognition if supported
+    if (SpeechRecognition && voiceUI) {
         recognition = new SpeechRecognition();
-        recognition.continuous = true; // 持续识别
-        recognition.lang = 'zh-CN'; // 设置语言为中文
-        recognition.interimResults = true; // 获取临时结果
+        recognition.continuous = true;
+        recognition.lang = 'id-ID'; // Indonesian
+        recognition.interimResults = true;
 
         recognition.onresult = async (event) => {
-            const transcriptContainer = document.getElementById('transcript');
             let final_transcript = '';
             let interim_transcript = '';
 
@@ -604,13 +757,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             }
 
-            // Update interim results
-            transcriptContainer.textContent = `Kamu: ${final_transcript || interim_transcript}`;
+            // Update Voice UI transcript
+            voiceUI.updateTranscript(final_transcript || interim_transcript, !final_transcript);
 
             // Once we have a final result, process it with the AI
             if (final_transcript && bellaAI) {
                 const userText = final_transcript.trim();
-                transcriptContainer.textContent = `Kamu: ${userText}`;
+                voiceUI.updateTranscript(`You: ${userText}`);
 
                 // 如果聊天界面已打开，也在聊天窗口中显示
                 if (chatInterface && chatInterface.getVisibility()) {
@@ -618,22 +771,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
 
                 try {
-                    // Let Bella think
-                    const thinkingText = document.createElement('p');
-                    thinkingText.textContent = 'Bella sedang berpikir...';
-                    thinkingText.style.color = '#888';
-                    thinkingText.style.fontStyle = 'italic';
-                    transcriptContainer.appendChild(thinkingText);
+                    // Update Voice UI status
+                    voiceUI.setStatus('AI thinking...');
                     
                     const response = await bellaAI.think(userText);
                     
-                    transcriptContainer.removeChild(thinkingText);
-                    const bellaText = document.createElement('p');
-                    bellaText.textContent = `Bella: ${response}`;
-                    bellaText.style.color = '#ff6b9d';
-                    bellaText.style.fontWeight = 'bold';
-                    bellaText.style.marginTop = '10px';
-                    transcriptContainer.appendChild(bellaText);
+                    voiceUI.updateTranscript(`${selectedAvatar ? selectedAvatar.name : 'AI'}: ${response}`);
+                    voiceUI.setStatus('Speaking...');
 
                     // 如果聊天界面已打开，也在聊天窗口中显示
                     if (chatInterface && chatInterface.getVisibility()) {
@@ -644,15 +788,27 @@ document.addEventListener('DOMContentLoaded', async function() {
                     if ('speechSynthesis' in window) {
                         const utterance = new SpeechSynthesisUtterance(response);
                         utterance.lang = 'id-ID'; // Bahasa Indonesia
-                        utterance.rate = 0.9; // Sedikit lebih lambat
-                        utterance.pitch = 1.2; // Sedikit lebih tinggi untuk suara feminine
+                        const ttsSettings = getTTSSettings(currentAvatarGender);
+                        utterance.rate = ttsSettings.rate;
+                        utterance.pitch = ttsSettings.pitch;
                         utterance.volume = 0.8;
                         
                         // Pilih voice Indonesia jika ada
                         const voices = window.speechSynthesis.getVoices();
-                        const indonesianVoice = voices.find(voice => voice.lang.startsWith('id'));
-                        if (indonesianVoice) {
-                            utterance.voice = indonesianVoice;
+                        const bestVoice = selectBestVoice(voices, 'id', currentAvatarGender);
+                        if (bestVoice) {
+                            utterance.voice = bestVoice;
+                            console.log(`Using voice: ${bestVoice.name} for ${currentAvatarGender} avatar`);
+                        }
+                        
+                        // Start speaking animation in Voice UI if available
+                        if (voiceUI) {
+                            voiceUI.startSpeaking();
+                            
+                            utterance.onend = () => {
+                                voiceUI.stopSpeaking();
+                                voiceUI.setStatus('Ready');
+                            };
                         }
                         
                         window.speechSynthesis.speak(utterance);
@@ -665,12 +821,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                     }
 
                 } catch (error) {
-                    console.error('Bella AI processing error:', error);
-                    const errorText = document.createElement('p');
-                    const errorMsg = 'Bella mengalami masalah saat memproses, tapi dia masih berusaha belajar...';
-                    errorText.textContent = errorMsg;
-                    errorText.style.color = '#ff9999';
-                    transcriptContainer.appendChild(errorText);
+                    console.error('AI processing error:', error);
+                    const errorMsg = 'AI mengalami masalah saat memproses, tapi masih berusaha belajar...';
+                    voiceUI.updateTranscript(errorMsg);
+                    voiceUI.setStatus('Error');
                     
                     if (chatInterface && chatInterface.getVisibility()) {
                         chatInterface.addMessage('assistant', errorMsg);
@@ -680,100 +834,60 @@ document.addEventListener('DOMContentLoaded', async function() {
         };
 
         recognition.onerror = (event) => {
-            console.error('Error pengenalan suara:', event.error);
-            const transcriptContainer = document.getElementById('transcript');
+            console.error('Speech recognition error:', event.error);
             
             switch(event.error) {
                 case 'not-allowed':
-                    transcriptContainer.textContent = 'Akses mikrofon ditolak. Silakan izinkan akses mikrofon di browser.';
-                    // Show permission prompt
-                    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                        navigator.mediaDevices.getUserMedia({ audio: true })
-                            .then(stream => {
-                                console.log('Mikrofon diizinkan');
-                                stream.getTracks().forEach(track => track.stop());
-                            })
-                            .catch(err => {
-                                console.error('Gagal mendapat izin mikrofon:', err);
-                            });
-                    }
+                    voiceUI.setStatus('Mic access denied');
+                    voiceUI.updateTranscript('Please allow microphone access in your browser.');
                     break;
                 case 'no-speech':
-                    transcriptContainer.textContent = 'Tidak ada suara terdeteksi. Coba lagi.';
+                    voiceUI.setStatus('No speech detected');
                     break;
                 case 'audio-capture':
-                    transcriptContainer.textContent = 'Mikrofon tidak ditemukan. Pastikan mikrofon terhubung.';
+                    voiceUI.setStatus('No microphone found');
                     break;
                 case 'network':
-                    transcriptContainer.textContent = 'Error jaringan. Periksa koneksi internet.';
+                    voiceUI.setStatus('Network error');
                     break;
                 default:
-                    transcriptContainer.textContent = `Error: ${event.error}`;
+                    voiceUI.setStatus(`Error: ${event.error}`);
             }
+            voiceUI.stopListening();
             
-            // Reset button state
             isListening = false;
-            micButton.classList.remove('is-listening');
         };
 
-    } else {
-        console.log('Browser Anda tidak mendukung fitur pengenalan suara.');
-        // 可以在界面上给用户提示
-    }
-
-    // --- 麦克风按钮交互 ---
-    let isListening = false;
-
-    micButton.addEventListener('click', async function() {
-        if (!SpeechRecognition) {
-            const transcriptText = document.getElementById('transcript');
-            transcriptText.textContent = 'Browser tidak mendukung voice recognition.';
-            return;
-        }
-
-        // Check microphone permission first
-        if (isListening === false) {
-            try {
-                // Request permission before starting recognition
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                console.log('Mikrofon diizinkan');
-                // Stop the stream immediately - we just needed permission
-                stream.getTracks().forEach(track => track.stop());
-                
-                // Now start recognition
-                isListening = true;
-                micButton.classList.add('is-listening');
-                const transcriptContainer = document.querySelector('.transcript-container');
-                const transcriptText = document.getElementById('transcript');
-                transcriptText.textContent = 'Mendengarkan...';
-                transcriptContainer.classList.add('visible');
-                recognition.start();
-                
-            } catch (err) {
-                console.error('Error mendapat izin mikrofon:', err);
-                const transcriptText = document.getElementById('transcript');
-                const transcriptContainer = document.querySelector('.transcript-container');
-                transcriptContainer.classList.add('visible');
-                
-                if (err.name === 'NotAllowedError') {
-                    transcriptText.textContent = 'Akses mikrofon ditolak. Klik ikon gembok di address bar untuk memberi izin.';
-                } else if (err.name === 'NotFoundError') {
-                    transcriptText.textContent = 'Mikrofon tidak ditemukan. Pastikan mikrofon terhubung.';
-                } else {
-                    transcriptText.textContent = 'Error: ' + err.message;
-                }
+        // Voice UI mic button handler
+        voiceUI.onMicClick = async () => {
+            if (!SpeechRecognition) {
+                voiceUI.setStatus('Speech recognition not supported');
+                return;
             }
-        } else {
-            // Stop recognition
-            isListening = false;
-            micButton.classList.remove('is-listening');
-            const transcriptContainer = document.querySelector('.transcript-container');
-            const transcriptText = document.getElementById('transcript');
-            recognition.stop();
-            transcriptContainer.classList.remove('visible');
-            transcriptText.textContent = '';
+            
+            if (!isListening) {
+                try {
+                    isListening = true;
+                    recognition.start();
+                    voiceUI.setStatus('Listening...');
+                } catch (err) {
+                    console.error('Failed to start recognition:', err);
+                    voiceUI.setStatus('Failed to start');
+                    isListening = false;
+                    voiceUI.stopListening();
+                }
+            } else {
+                isListening = false;
+                recognition.stop();
+                voiceUI.stopListening();
+            }
+        };
+    } else {
+        console.log('Speech recognition not supported');
+        if (voiceUI) {
+            voiceUI.setStatus('Speech recognition not supported');
         }
-    });
+    }
 
 
 

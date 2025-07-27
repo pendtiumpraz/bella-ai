@@ -1,0 +1,281 @@
+/* Voice UI Panel Styles */
+.voice-ui-panel {
+    position: fixed;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(20, 20, 30, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 25px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    width: 320px;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.voice-ui-panel.collapsed {
+    width: 80px;
+    padding: 15px;
+}
+
+.voice-ui-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.voice-ui-title {
+    color: white;
+    font-size: 18px;
+    font-weight: 600;
+    font-family: 'Arial', sans-serif;
+}
+
+.voice-ui-panel.collapsed .voice-ui-title {
+    display: none;
+}
+
+.voice-ui-toggle {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px;
+    transition: transform 0.3s ease;
+}
+
+.voice-ui-toggle:hover {
+    transform: scale(1.1);
+}
+
+/* Mic Button */
+.voice-mic-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.voice-mic-button {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ff6b9d 0%, #c44569 100%);
+    border: none;
+    color: white;
+    font-size: 32px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-shadow: 0 5px 20px rgba(255, 107, 157, 0.4);
+}
+
+.voice-mic-button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(255, 107, 157, 0.6);
+}
+
+.voice-mic-button.listening {
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    animation: pulse 1.5s infinite;
+}
+
+.voice-mic-button.speaking {
+    background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 5px 20px rgba(76, 175, 80, 0.4);
+    }
+    50% {
+        box-shadow: 0 5px 30px rgba(76, 175, 80, 0.8);
+    }
+    100% {
+        box-shadow: 0 5px 20px rgba(76, 175, 80, 0.4);
+    }
+}
+
+.voice-status {
+    color: #999;
+    font-size: 14px;
+    margin-top: 15px;
+    text-align: center;
+}
+
+.voice-ui-panel.collapsed .voice-status {
+    display: none;
+}
+
+/* Audio Spectrum */
+.audio-spectrum-container {
+    margin-bottom: 20px;
+}
+
+.voice-ui-panel.collapsed .audio-spectrum-container {
+    display: none;
+}
+
+.spectrum-label {
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.audio-spectrum {
+    position: relative;
+    height: 60px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 15px;
+}
+
+.spectrum-bars {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    height: 100%;
+    padding: 5px;
+}
+
+.spectrum-bar {
+    width: 4px;
+    background: linear-gradient(to top, #667eea 0%, #764ba2 100%);
+    border-radius: 2px 2px 0 0;
+    transition: height 0.1s ease;
+    min-height: 2px;
+}
+
+/* Input spectrum (user mic) - Green theme */
+.spectrum-input .spectrum-bar {
+    background: linear-gradient(to top, #4CAF50 0%, #81C784 100%);
+}
+
+/* Output spectrum (AI speaking) - Blue theme */
+.spectrum-output .spectrum-bar {
+    background: linear-gradient(to top, #2196F3 0%, #64B5F6 100%);
+}
+
+/* Voice Controls */
+.voice-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.voice-ui-panel.collapsed .voice-controls {
+    display: none;
+}
+
+.voice-control-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.voice-control-label {
+    color: #ccc;
+    font-size: 14px;
+}
+
+.voice-control-value {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.volume-slider {
+    width: 100px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    outline: none;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.volume-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.volume-value {
+    color: white;
+    font-size: 12px;
+    min-width: 30px;
+}
+
+/* Transcript Display */
+.voice-transcript {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    padding: 15px;
+    max-height: 150px;
+    overflow-y: auto;
+    margin-top: 20px;
+}
+
+.voice-ui-panel.collapsed .voice-transcript {
+    display: none;
+}
+
+.transcript-text {
+    color: #ddd;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.transcript-label {
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .voice-ui-panel {
+        left: 10px;
+        width: 280px;
+    }
+    
+    .voice-ui-panel.collapsed {
+        width: 60px;
+    }
+    
+    .voice-mic-button {
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+    }
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+    .voice-ui-panel {
+        background: rgba(30, 30, 40, 0.95);
+    }
+}

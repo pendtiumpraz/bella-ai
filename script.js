@@ -433,9 +433,29 @@ document.addEventListener('DOMContentLoaded', async function() {
                         if (voiceUI) {
                             voiceUI.startSpeaking();
                             
+                            // Try to connect audio for spectrum visualization
+                            try {
+                                // Create a silent audio element to capture TTS output
+                                const audioElement = new Audio();
+                                audioElement.srcObject = new MediaStream();
+                                voiceUI.connectAudioElement(audioElement);
+                            } catch (err) {
+                                console.log('Could not connect TTS to spectrum:', err);
+                            }
+                            
                             utterance.onend = () => {
                                 voiceUI.stopSpeaking();
-                                voiceUI.setStatus('Ready');
+                                voiceUI.setStatus('Conversation active');
+                                
+                                // Continue listening if in conversation mode
+                                if (isConversationMode && !isListening) {
+                                    try {
+                                        recognition.start();
+                                        isListening = true;
+                                    } catch (err) {
+                                        console.log('Could not restart recognition:', err);
+                                    }
+                                }
                             };
                         }
                         
@@ -578,9 +598,29 @@ document.addEventListener('DOMContentLoaded', async function() {
                         if (voiceUI) {
                             voiceUI.startSpeaking();
                             
+                            // Try to connect audio for spectrum visualization
+                            try {
+                                // Create a silent audio element to capture TTS output
+                                const audioElement = new Audio();
+                                audioElement.srcObject = new MediaStream();
+                                voiceUI.connectAudioElement(audioElement);
+                            } catch (err) {
+                                console.log('Could not connect TTS to spectrum:', err);
+                            }
+                            
                             utterance.onend = () => {
                                 voiceUI.stopSpeaking();
-                                voiceUI.setStatus('Ready');
+                                voiceUI.setStatus('Conversation active');
+                                
+                                // Continue listening if in conversation mode
+                                if (isConversationMode && !isListening) {
+                                    try {
+                                        recognition.start();
+                                        isListening = true;
+                                    } catch (err) {
+                                        console.log('Could not restart recognition:', err);
+                                    }
+                                }
                             };
                         }
                         
@@ -765,6 +805,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition;
     let isListening = false;
+    let isConversationMode = false;
+    let silenceTimer = null;
+    let lastTranscriptTime = Date.now();
+    let currentTranscript = '';
 
     // Setup speech recognition if supported
     if (SpeechRecognition && voiceUI) {
@@ -785,22 +829,40 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             }
 
-            // Update Voice UI transcript
-            voiceUI.updateTranscript(final_transcript || interim_transcript, !final_transcript);
+            // Update current transcript
+            if (final_transcript) {
+                currentTranscript += ' ' + final_transcript;
+                currentTranscript = currentTranscript.trim();
+                lastTranscriptTime = Date.now();
+            }
 
-            // Once we have a final result, process it with the AI
-            if (final_transcript && bellaAI) {
-                const userText = final_transcript.trim();
-                voiceUI.updateTranscript(`You: ${userText}`);
+            // Update Voice UI with accumulated transcript
+            const displayText = currentTranscript + (interim_transcript ? ' ' + interim_transcript : '');
+            voiceUI.updateTranscript(displayText, true);
 
-                // 如果聊天界面已打开，也在聊天窗口中显示
-                if (chatInterface && chatInterface.getVisibility()) {
-                    chatInterface.addMessage('user', userText);
-                }
+            // Reset silence timer on any speech
+            if (silenceTimer) {
+                clearTimeout(silenceTimer);
+            }
 
-                try {
-                    // Update Voice UI status
-                    voiceUI.setStatus('AI thinking...');
+            // Set new silence timer
+            if (isConversationMode && currentTranscript) {
+                silenceTimer = setTimeout(async () => {
+                    // 3 seconds of silence, process the message
+                    if (currentTranscript && bellaAI) {
+                        const userText = currentTranscript.trim();
+                        currentTranscript = ''; // Reset for next input
+                        
+                        voiceUI.updateTranscript(`You: ${userText}`);
+
+                        // 如果聊天界面已打开，也在聊天窗口中显示
+                        if (chatInterface && chatInterface.getVisibility()) {
+                            chatInterface.addMessage('user', userText);
+                        }
+
+                        try {
+                            // Update Voice UI status
+                            voiceUI.setStatus('AI thinking...');
                     
                     console.log('Processing voice input:', userText);
                     console.log('BellaAI instance:', bellaAI);
@@ -840,9 +902,29 @@ document.addEventListener('DOMContentLoaded', async function() {
                         if (voiceUI) {
                             voiceUI.startSpeaking();
                             
+                            // Try to connect audio for spectrum visualization
+                            try {
+                                // Create a silent audio element to capture TTS output
+                                const audioElement = new Audio();
+                                audioElement.srcObject = new MediaStream();
+                                voiceUI.connectAudioElement(audioElement);
+                            } catch (err) {
+                                console.log('Could not connect TTS to spectrum:', err);
+                            }
+                            
                             utterance.onend = () => {
                                 voiceUI.stopSpeaking();
-                                voiceUI.setStatus('Ready');
+                                voiceUI.setStatus('Conversation active');
+                                
+                                // Continue listening if in conversation mode
+                                if (isConversationMode && !isListening) {
+                                    try {
+                                        recognition.start();
+                                        isListening = true;
+                                    } catch (err) {
+                                        console.log('Could not restart recognition:', err);
+                                    }
+                                }
                             };
                         }
                         
@@ -874,10 +956,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                     voiceUI.updateTranscript(errorMsg);
                     voiceUI.setStatus('Error');
                     
-                    if (chatInterface && chatInterface.getVisibility()) {
-                        chatInterface.addMessage('assistant', errorMsg);
+                            if (chatInterface && chatInterface.getVisibility()) {
+                                chatInterface.addMessage('assistant', errorMsg);
+                            }
+                        }
                     }
-                }
+                }, 3000); // 3 seconds silence timeout
             }
         };
 
@@ -906,44 +990,65 @@ document.addEventListener('DOMContentLoaded', async function() {
             isListening = false;
         };
 
-        // Voice UI mic button handler
+        // Voice UI mic button handler - Start/Stop conversation mode
         voiceUI.onMicClick = async () => {
             if (!SpeechRecognition) {
                 voiceUI.setStatus('Speech recognition not supported');
                 return;
             }
             
-            if (!isListening) {
+            if (!isConversationMode) {
+                // Start conversation mode
                 try {
-                    // Check if recognition is already running
-                    if (recognition.state === 'running') {
-                        console.log('Recognition already running, stopping first');
-                        recognition.stop();
-                        await new Promise(resolve => setTimeout(resolve, 100));
+                    isConversationMode = true;
+                    isListening = true;
+                    currentTranscript = '';
+                    
+                    recognition.start();
+                    voiceUI.setStatus('Conversation active');
+                    voiceUI.startListening();
+                    
+                    // Change button to show it's active
+                    if (voiceUI.micButton) {
+                        voiceUI.micButton.innerHTML = '<i class="fas fa-stop"></i>';
+                        voiceUI.micButton.classList.add('active-conversation');
                     }
                     
-                    isListening = true;
-                    recognition.start();
-                    voiceUI.setStatus('Listening...');
+                    console.log('Started conversation mode');
                 } catch (err) {
-                    console.error('Failed to start recognition:', err);
-                    if (err.name === 'InvalidStateError') {
-                        // Try to stop and restart
-                        recognition.stop();
-                        isListening = false;
-                        voiceUI.stopListening();
-                        voiceUI.setStatus('Click again to start');
-                    } else {
-                        voiceUI.setStatus('Failed to start');
-                        isListening = false;
-                        voiceUI.stopListening();
-                    }
+                    console.error('Failed to start conversation:', err);
+                    isConversationMode = false;
+                    isListening = false;
+                    voiceUI.stopListening();
+                    voiceUI.setStatus('Failed to start');
                 }
             } else {
+                // Stop conversation mode
+                isConversationMode = false;
                 isListening = false;
-                recognition.stop();
+                currentTranscript = '';
+                
+                if (silenceTimer) {
+                    clearTimeout(silenceTimer);
+                    silenceTimer = null;
+                }
+                
+                try {
+                    recognition.stop();
+                } catch (err) {
+                    console.log('Error stopping recognition:', err);
+                }
+                
                 voiceUI.stopListening();
-                voiceUI.setStatus('Ready');
+                voiceUI.setStatus('Conversation ended');
+                
+                // Reset button
+                if (voiceUI.micButton) {
+                    voiceUI.micButton.innerHTML = '<i class="fas fa-microphone"></i>';
+                    voiceUI.micButton.classList.remove('active-conversation');
+                }
+                
+                console.log('Stopped conversation mode');
             }
         };
     } else {

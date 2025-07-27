@@ -85,6 +85,12 @@
     animation: pulse 1.5s infinite;
 }
 
+.voice-mic-button.active-conversation {
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+    box-shadow: 0 0 30px rgba(255, 68, 68, 0.6);
+    animation: pulse 1s infinite;
+}
+
 .voice-mic-button.speaking {
     background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
 }

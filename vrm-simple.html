@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>VRM Avatar Simple</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: transparent;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Loading VRM...</div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.7/lib/three-vrm.module.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+
+        const info = document.getElementById('info');
+
+        // Scene
+        const scene = new THREE.Scene();
+        
+        // Camera
+        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 20);
+        camera.position.set(0, 1.4, 3);
+        
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: true 
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+        
+        // Lights
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(1, 1, 1);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+        // VRM
+        let currentVrm = null;
+        const clock = new THREE.Clock();
+
+        // Mouse control
+        let mouseDown = false;
+        let mouseX = 0;
+        let rotationSpeed = 0;
+        
+        renderer.domElement.addEventListener('mousedown', () => mouseDown = true);
+        renderer.domElement.addEventListener('mouseup', () => mouseDown = false);
+        renderer.domElement.addEventListener('mousemove', (event) => {
+            if (mouseDown && currentVrm) {
+                const deltaX = event.clientX - mouseX;
+                rotationSpeed = deltaX * 0.01;
+            }
+            mouseX = event.clientX;
+        });
+
+        // Load VRM
+        async function loadVRM(url) {
+            try {
+                info.textContent = 'Loading VRM...';
+                
+                const loader = new GLTFLoader();
+                loader.register((parser) => new VRMLoaderPlugin(parser));
+
+                const gltf = await loader.loadAsync(url);
+                const vrm = gltf.userData.vrm;
+
+                if (!vrm) throw new Error('No VRM data found');
+
+                // Remove old
+                if (currentVrm) {
+                    scene.remove(currentVrm.scene);
+                }
+
+                // Add new
+                currentVrm = vrm;
+                scene.add(vrm.scene);
+                
+                // Face forward
+                vrm.scene.rotation.y = Math.PI;
+                
+                // Set arms to natural resting position
+                if (vrm.humanoid) {
+                    // Upper arms - lower them down
+                    const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                    const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+                    
+                    if (leftUpperArm) {
+                        leftUpperArm.rotation.z = Math.PI / 2.2; // About 80 degrees down
+                    }
+                    if (rightUpperArm) {
+                        rightUpperArm.rotation.z = -Math.PI / 2.2; // About -80 degrees down
+                    }
+                    
+                    // Lower arms - straighten them
+                    const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+                    const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+                    
+                    if (leftLowerArm) {
+                        leftLowerArm.rotation.y = 0; // Straight
+                        leftLowerArm.rotation.z = 0;
+                    }
+                    if (rightLowerArm) {
+                        rightLowerArm.rotation.y = 0; // Straight
+                        rightLowerArm.rotation.z = 0;
+                    }
+                    
+                    // Hands - natural position
+                    const leftHand = vrm.humanoid.getNormalizedBoneNode('leftHand');
+                    const rightHand = vrm.humanoid.getNormalizedBoneNode('rightHand');
+                    
+                    if (leftHand) {
+                        leftHand.rotation.z = 0;
+                    }
+                    if (rightHand) {
+                        rightHand.rotation.z = 0;
+                    }
+                }
+                
+                info.textContent = 'VRM Ready: ' + url.split('/').pop();
+                console.log('VRM loaded:', vrm);
+                
+                // Log available expressions
+                if (vrm.expressionManager) {
+                    const expressions = vrm.expressionManager.expressions.map(e => e.expressionName);
+                    console.log('Available expressions:', expressions);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                info.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        // Simple speaking animation
+        window.startSpeaking = function(text) {
+            if (!currentVrm || !currentVrm.expressionManager) return;
+            
+            info.textContent = 'Speaking...';
+            const duration = Math.min(text.length * 50, 5000);
+            
+            // Simple mouth movement
+            const interval = setInterval(() => {
+                const value = Math.random() * 0.8;
+                
+                // Try to set mouth expression
+                ['aa', 'ih', 'ou', 'ee', 'oh'].forEach(shape => {
+                    currentVrm.expressionManager.setValue(shape, value);
+                });
+            }, 150);
+            
+            setTimeout(() => {
+                clearInterval(interval);
+                // Close mouth
+                ['aa', 'ih', 'ou', 'ee', 'oh'].forEach(shape => {
+                    currentVrm.expressionManager.setValue(shape, 0);
+                });
+                info.textContent = 'Ready';
+            }, duration);
+        };
+
+        // Reset to natural pose
+        window.resetPose = function() {
+            if (!currentVrm || !currentVrm.humanoid) return;
+            
+            // Reset all bones to default first
+            const bones = ['leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm', 'leftHand', 'rightHand'];
+            bones.forEach(boneName => {
+                const bone = currentVrm.humanoid.getNormalizedBoneNode(boneName);
+                if (bone) {
+                    bone.rotation.x = 0;
+                    bone.rotation.y = 0;
+                    bone.rotation.z = 0;
+                }
+            });
+            
+            // Then set natural position
+            const leftUpperArm = currentVrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightUpperArm = currentVrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+            
+            if (leftUpperArm) {
+                leftUpperArm.rotation.z = Math.PI / 2.5; // Arms down at sides
+            }
+            if (rightUpperArm) {
+                rightUpperArm.rotation.z = -Math.PI / 2.5;
+            }
+            
+            info.textContent = 'Pose reset';
+        };
+
+        // Set expression
+        window.setExpression = function(emotion) {
+            if (!currentVrm || !currentVrm.expressionManager) return;
+            
+            // Reset all
+            ['happy', 'angry', 'sad', 'relaxed', 'surprised'].forEach(exp => {
+                currentVrm.expressionManager.setValue(exp, 0);
+            });
+            
+            // Set new
+            currentVrm.expressionManager.setValue(emotion, 1);
+            
+            setTimeout(() => {
+                currentVrm.expressionManager.setValue(emotion, 0);
+            }, 3000);
+        };
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const deltaTime = clock.getDelta();
+            
+            if (currentVrm) {
+                // Update VRM (without parameters to avoid lookAt errors)
+                currentVrm.update(deltaTime);
+                
+                // Apply rotation
+                if (Math.abs(rotationSpeed) > 0.001) {
+                    currentVrm.scene.rotation.y += rotationSpeed;
+                    rotationSpeed *= 0.9; // Damping
+                }
+                
+                // Simple idle animation
+                const time = clock.elapsedTime;
+                
+                // Breathing
+                if (currentVrm.humanoid) {
+                    const spine = currentVrm.humanoid.getNormalizedBoneNode('spine');
+                    if (spine) {
+                        spine.position.y = Math.sin(time * 2) * 0.003;
+                    }
+                }
+                
+                // Auto blink
+                if (Math.random() < 0.002 && currentVrm.expressionManager) {
+                    currentVrm.expressionManager.setValue('blink', 1);
+                    setTimeout(() => {
+                        currentVrm.expressionManager.setValue('blink', 0);
+                    }, 150);
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle messages
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel') {
+                loadVRM(event.data.path);
+            } else if (event.data.type === 'speak') {
+                window.startSpeaking(event.data.text);
+            } else if (event.data.type === 'expression') {
+                window.setExpression(event.data.emotion);
+            }
+        });
+
+        // Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Load default - Galih Hoodie Esteh
+        loadVRM('vtuber/Galih Hoodie Esteh.vrm');
+    </script>
+</body>
+</html>

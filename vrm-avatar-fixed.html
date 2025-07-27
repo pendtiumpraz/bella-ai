@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>VRM Avatar - Fixed Version</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: transparent;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+        #error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: red;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Loading...</div>
+    <div id="error"></div>
+
+    <!-- Using CDN with specific versions that work together -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRMLoaderPlugin, VRMUtils } from 'https://unpkg.com/@pixiv/three-vrm@2.0.7/lib/three-vrm.module.js';
+
+        const info = document.getElementById('info');
+        const errorDiv = document.getElementById('error');
+
+        // Check if running in iframe
+        console.log('VRM Avatar Fixed - Initializing...');
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        
+        // Camera
+        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 20);
+        camera.position.set(0, 1.4, 3);
+        
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: true 
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.body.appendChild(renderer.domElement);
+        
+        // Lights
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(1, 1, 1);
+        scene.add(light);
+        
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        // VRM holder
+        let currentVrm = null;
+        const clock = new THREE.Clock();
+
+        // Mouse controls and eye tracking
+        let mouseX = 0;
+        let mouseY = 0;
+        let targetRotationY = 0;
+        let currentRotationY = 0;
+        let lookAtX = 0;
+        let lookAtY = 0;
+
+        // Track mouse for eye movement
+        document.addEventListener('mousemove', (event) => {
+            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // For body rotation when dragging
+            if (event.buttons === 1) {
+                targetRotationY = mouseX * Math.PI;
+            }
+            
+            // For eye tracking
+            lookAtX = mouseX * 2;
+            lookAtY = mouseY + 1.4;
+        });
+
+        renderer.domElement.addEventListener('wheel', (event) => {
+            camera.position.z += event.deltaY * 0.001;
+            camera.position.z = Math.max(1, Math.min(5, camera.position.z));
+        });
+
+        // Load VRM
+        async function loadVRM(url) {
+            try {
+                info.textContent = 'Loading VRM model...';
+                
+                const loader = new GLTFLoader();
+                
+                // Register VRM plugin
+                loader.register((parser) => {
+                    return new VRMLoaderPlugin(parser);
+                });
+
+                const gltf = await loader.loadAsync(url);
+                
+                const vrm = gltf.userData.vrm;
+                
+                if (!vrm) {
+                    throw new Error('No VRM data found in file');
+                }
+
+                // Remove old model
+                if (currentVrm) {
+                    scene.remove(currentVrm.scene);
+                    VRMUtils.deepDispose(currentVrm.scene);
+                }
+
+                // Add new model
+                currentVrm = vrm;
+                scene.add(vrm.scene);
+                
+                // Rotate model to face camera (180 degrees)
+                vrm.scene.rotation.y = Math.PI;
+                
+                // Reset to default pose (T-pose to relaxed pose)
+                if (vrm.humanoid) {
+                    // Lower arms to more natural position
+                    const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                    const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+                    
+                    if (leftUpperArm) {
+                        leftUpperArm.rotation.z = Math.PI / 4; // 45 degrees
+                    }
+                    if (rightUpperArm) {
+                        rightUpperArm.rotation.z = -Math.PI / 4; // -45 degrees
+                    }
+                    
+                    // Slightly bend elbows
+                    const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+                    const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+                    
+                    if (leftLowerArm) {
+                        leftLowerArm.rotation.y = -Math.PI / 8; // Slight bend
+                    }
+                    if (rightLowerArm) {
+                        rightLowerArm.rotation.y = Math.PI / 8; // Slight bend
+                    }
+                }
+                
+                // Setup blendshapes for expressions
+                if (vrm.expressionManager) {
+                    console.log('Available expressions:', vrm.expressionManager.expressions.map(e => e.expressionName));
+                }
+                
+                info.textContent = 'VRM loaded: ' + url.split('/').pop();
+                console.log('VRM loaded successfully:', vrm);
+                
+            } catch (error) {
+                console.error('Error loading VRM:', error);
+                errorDiv.style.display = 'block';
+                errorDiv.innerHTML = `
+                    Failed to load VRM!<br>
+                    ${error.message}<br>
+                    <small>Check console for details</small>
+                `;
+                info.textContent = 'Error!';
+            }
+        }
+
+        // Blink timer
+        let blinkTimer = 0;
+        let isBlinking = false;
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const deltaTime = clock.getDelta();
+            
+            // Smooth rotation
+            currentRotationY += (targetRotationY - currentRotationY) * 0.05;
+            
+            if (currentVrm) {
+                // Update VRM
+                currentVrm.update(deltaTime);
+                
+                // Apply body rotation (keep facing forward + mouse rotation)
+                currentVrm.scene.rotation.y = Math.PI + currentRotationY;
+                
+                // Eye tracking - make eyes follow mouse
+                // VRM lookAt needs a proper setup, for now disable to prevent errors
+                
+                // Breathing animation
+                const breathing = Math.sin(clock.elapsedTime * 2) * 0.002;
+                if (currentVrm.humanoid) {
+                    const spine = currentVrm.humanoid.getNormalizedBoneNode('spine');
+                    const chest = currentVrm.humanoid.getNormalizedBoneNode('upperChest') || 
+                                currentVrm.humanoid.getNormalizedBoneNode('chest');
+                    
+                    if (spine) {
+                        spine.position.y = breathing;
+                    }
+                    if (chest) {
+                        chest.position.y = breathing * 0.5;
+                    }
+                    
+                    // Subtle idle motion - slight swaying
+                    const swayAmount = 0.02;
+                    const sway = Math.sin(clock.elapsedTime * 0.5) * swayAmount;
+                    currentVrm.scene.position.x = sway;
+                }
+                
+                // Auto blink
+                blinkTimer += deltaTime;
+                if (blinkTimer > 3 + Math.random() * 2 && !isBlinking) {
+                    isBlinking = true;
+                    if (currentVrm.expressionManager) {
+                        const blinkExp = currentVrm.expressionManager.getValue('blink');
+                        if (blinkExp !== undefined) {
+                            currentVrm.expressionManager.setValue('blink', 1);
+                            setTimeout(() => {
+                                currentVrm.expressionManager.setValue('blink', 0);
+                                isBlinking = false;
+                            }, 150);
+                        }
+                    }
+                    blinkTimer = 0;
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Speaking animation
+        let isSpeaking = false;
+        let speakingTimer = 0;
+        
+        function startSpeaking(text) {
+            isSpeaking = true;
+            info.textContent = 'Speaking...';
+            
+            // Simple lip sync simulation
+            const words = text.split(' ').length;
+            const duration = Math.min(words * 300, 5000); // Estimate duration
+            
+            const lipSyncInterval = setInterval(() => {
+                if (currentVrm && currentVrm.expressionManager) {
+                    const mouthValue = Math.random() * 0.8;
+                    // Try different mouth shapes
+                    const mouthShapes = ['aa', 'ih', 'ou', 'ee', 'oh'];
+                    const randomMouth = mouthShapes[Math.floor(Math.random() * mouthShapes.length)];
+                    
+                    if (currentVrm.expressionManager.getValue(randomMouth) !== undefined) {
+                        currentVrm.expressionManager.setValue(randomMouth, mouthValue);
+                    }
+                }
+            }, 100);
+            
+            setTimeout(() => {
+                clearInterval(lipSyncInterval);
+                isSpeaking = false;
+                // Close mouth
+                if (currentVrm && currentVrm.expressionManager) {
+                    ['aa', 'ih', 'ou', 'ee', 'oh'].forEach(shape => {
+                        if (currentVrm.expressionManager.getValue(shape) !== undefined) {
+                            currentVrm.expressionManager.setValue(shape, 0);
+                        }
+                    });
+                }
+                info.textContent = 'Ready';
+            }, duration);
+        }
+        
+        // Set expression
+        function setExpression(emotion) {
+            if (!currentVrm || !currentVrm.expressionManager) return;
+            
+            // Reset all expressions first
+            ['happy', 'angry', 'sad', 'relaxed', 'surprised'].forEach(exp => {
+                if (currentVrm.expressionManager.getValue(exp) !== undefined) {
+                    currentVrm.expressionManager.setValue(exp, 0);
+                }
+            });
+            
+            // Set new expression
+            if (currentVrm.expressionManager.getValue(emotion) !== undefined) {
+                currentVrm.expressionManager.setValue(emotion, 1);
+                
+                // Auto reset after 3 seconds
+                setTimeout(() => {
+                    currentVrm.expressionManager.setValue(emotion, 0);
+                }, 3000);
+            }
+        }
+
+        // Listen for messages from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel') {
+                console.log('Received loadModel message:', event.data.path);
+                loadVRM(event.data.path);
+            } else if (event.data.type === 'speak') {
+                console.log('Received speak message:', event.data.text);
+                startSpeaking(event.data.text);
+            } else if (event.data.type === 'expression') {
+                console.log('Received expression message:', event.data.emotion);
+                setExpression(event.data.emotion);
+            }
+        });
+
+        // Load default model - Galih Hoodie Esteh
+        loadVRM('vtuber/Galih Hoodie Esteh.vrm');
+
+        // Expose for debugging
+        window.debugVRM = {
+            scene,
+            camera,
+            renderer,
+            currentVrm,
+            loadVRM
+        };
+    </script>
+</body>
+</html>

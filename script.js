@@ -125,8 +125,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (selectedAvatar.type === 'VRM') {
                     console.log('Switching to VRM model:', selectedAvatar.name);
                     
-                    // Show VRM iframe
+                    // Show VRM iframe with interactive version
                     const vrmFrame = document.getElementById('vrm-avatar');
+                    vrmFrame.src = 'vrm-interactive.html'; // Use interactive version
                     vrmFrame.style.display = 'block';
                     
                     // Force style update
@@ -137,7 +138,6 @@ document.addEventListener('DOMContentLoaded', async function() {
                     vrmFrame.style.left = '0';
                     
                     console.log('VRM frame visibility:', vrmFrame.style.display);
-                    console.log('Canvas visibility:', bellaCanvas.style.display);
                     
                     // Send message to VRM iframe to load model
                     setTimeout(() => {
@@ -211,10 +211,24 @@ document.addEventListener('DOMContentLoaded', async function() {
                             const live2dFrame = document.getElementById('live2d-avatar');
                             
                             if (vrmFrame && vrmFrame.style.display !== 'none' && vrmFrame.contentWindow) {
-                                // Send message to VRM iframe to start speaking
+                                // Detect emotion from response
+                                let emotion = 'neutral';
+                                const lowerResponse = response.toLowerCase();
+                                if (lowerResponse.includes('senang') || lowerResponse.includes('bahagia') || lowerResponse.includes('😊') || lowerResponse.includes('😄')) {
+                                    emotion = 'happy';
+                                } else if (lowerResponse.includes('sedih') || lowerResponse.includes('maaf') || lowerResponse.includes('😢')) {
+                                    emotion = 'sad';
+                                } else if (lowerResponse.includes('marah') || lowerResponse.includes('kesal') || lowerResponse.includes('😠')) {
+                                    emotion = 'angry';
+                                } else if (lowerResponse.includes('wow') || lowerResponse.includes('amazing') || lowerResponse.includes('😮')) {
+                                    emotion = 'surprised';
+                                }
+                                
+                                // Send message to VRM iframe to start speaking with emotion
                                 vrmFrame.contentWindow.postMessage({
                                     type: 'speak',
-                                    text: response
+                                    text: response,
+                                    emotion: emotion
                                 }, '*');
                             } else if (live2dFrame && live2dFrame.style.display !== 'none' && live2dFrame.contentWindow) {
                                 // Send message to Live2D iframe to start speaking
@@ -308,10 +322,24 @@ document.addEventListener('DOMContentLoaded', async function() {
                             const live2dFrame = document.getElementById('live2d-avatar');
                             
                             if (vrmFrame && vrmFrame.style.display !== 'none' && vrmFrame.contentWindow) {
-                                // Send message to VRM iframe to start speaking
+                                // Detect emotion from response
+                                let emotion = 'neutral';
+                                const lowerResponse = response.toLowerCase();
+                                if (lowerResponse.includes('senang') || lowerResponse.includes('bahagia') || lowerResponse.includes('😊') || lowerResponse.includes('😄')) {
+                                    emotion = 'happy';
+                                } else if (lowerResponse.includes('sedih') || lowerResponse.includes('maaf') || lowerResponse.includes('😢')) {
+                                    emotion = 'sad';
+                                } else if (lowerResponse.includes('marah') || lowerResponse.includes('kesal') || lowerResponse.includes('😠')) {
+                                    emotion = 'angry';
+                                } else if (lowerResponse.includes('wow') || lowerResponse.includes('amazing') || lowerResponse.includes('😮')) {
+                                    emotion = 'surprised';
+                                }
+                                
+                                // Send message to VRM iframe to start speaking with emotion
                                 vrmFrame.contentWindow.postMessage({
                                     type: 'speak',
-                                    text: response
+                                    text: response,
+                                    emotion: emotion
                                 }, '*');
                             } else if (live2dFrame && live2dFrame.style.display !== 'none' && live2dFrame.contentWindow) {
                                 // Send message to Live2D iframe to start speaking

@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>VRM Avatar Interactive</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: transparent;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            z-index: 100;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Loading VRM...</div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.7/lib/three-vrm.module.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+
+        const info = document.getElementById('info');
+
+        // Scene
+        const scene = new THREE.Scene();
+        
+        // Camera - Zoom in closer, focus on face (1/5 from top)
+        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 20);
+        camera.position.set(0, 1.5, 1.5); // Y position at face level, Z closer
+        
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: true 
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+        
+        // Lights
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(1, 1, 1);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+        // VRM
+        let currentVrm = null;
+        const clock = new THREE.Clock();
+
+        // Mouse tracking for eyes
+        let mouseX = 0;
+        let mouseY = 0;
+        let targetLookAtX = 0;
+        let targetLookAtY = 0;
+        let currentLookAtX = 0;
+        let currentLookAtY = 0;
+        
+        // Head movement during speech
+        let isSpeaking = false;
+        let headMovementTime = 0;
+        
+        // Create look at target
+        const lookAtTarget = new THREE.Object3D();
+        scene.add(lookAtTarget);
+
+        document.addEventListener('mousemove', (event) => {
+            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // Update look at target position (adjusted for face level)
+            targetLookAtX = mouseX * 2;
+            targetLookAtY = mouseY * 0.5 + 1.5; // Match camera Y position
+        });
+
+        // Mouse drag for rotation
+        let mouseDown = false;
+        let lastMouseX = 0;
+        let rotationSpeed = 0;
+        
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            mouseDown = true;
+            lastMouseX = e.clientX;
+        });
+        
+        renderer.domElement.addEventListener('mouseup', () => mouseDown = false);
+        
+        renderer.domElement.addEventListener('mousemove', (event) => {
+            if (mouseDown && currentVrm) {
+                const deltaX = event.clientX - lastMouseX;
+                rotationSpeed = deltaX * 0.01;
+                lastMouseX = event.clientX;
+            }
+        });
+
+        // Zoom with wheel
+        renderer.domElement.addEventListener('wheel', (event) => {
+            camera.position.z += event.deltaY * 0.001;
+            camera.position.z = Math.max(0.5, Math.min(3, camera.position.z));
+        });
+
+        // Load VRM
+        async function loadVRM(url) {
+            try {
+                info.textContent = 'Loading VRM...';
+                
+                const loader = new GLTFLoader();
+                loader.register((parser) => new VRMLoaderPlugin(parser));
+
+                const gltf = await loader.loadAsync(url);
+                const vrm = gltf.userData.vrm;
+
+                if (!vrm) throw new Error('No VRM data found');
+
+                // Remove old
+                if (currentVrm) {
+                    scene.remove(currentVrm.scene);
+                }
+
+                // Add new
+                currentVrm = vrm;
+                scene.add(vrm.scene);
+                
+                // Face forward
+                vrm.scene.rotation.y = Math.PI;
+                
+                // Natural arm position
+                if (vrm.humanoid) {
+                    const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                    const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+                    
+                    if (leftUpperArm) leftUpperArm.rotation.z = Math.PI / 2.2;
+                    if (rightUpperArm) rightUpperArm.rotation.z = -Math.PI / 2.2;
+                }
+                
+                // Setup lookAt
+                if (vrm.lookAt) {
+                    vrm.lookAt.target = lookAtTarget;
+                }
+                
+                info.textContent = 'VRM Ready: ' + url.split('/').pop();
+                console.log('VRM loaded:', vrm);
+                
+                // Log expressions
+                if (vrm.expressionManager) {
+                    const expressions = vrm.expressionManager.expressions.map(e => e.expressionName);
+                    console.log('Available expressions:', expressions);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                info.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        // Detailed emotion expressions with face morphs
+        const emotionExpressions = {
+            happy: {
+                // Mulut tersenyum lebar
+                mouth: { 
+                    'mouth_smile': 0.8,
+                    'mouth_smile_left': 0.8, 
+                    'mouth_smile_right': 0.8,
+                    'mouth_corner_up_left': 0.6,
+                    'mouth_corner_up_right': 0.6
+                },
+                // Mata menyipit karena senyum
+                eyes: { 
+                    'eye_smile': 0.7,
+                    'eye_smile_left': 0.7,
+                    'eye_smile_right': 0.7,
+                    'eye_close_left': 0.2,
+                    'eye_close_right': 0.2
+                },
+                // Alis naik sedikit
+                eyebrows: { 
+                    'eyebrow_happy': 0.6,
+                    'eyebrow_up_left': 0.3,
+                    'eyebrow_up_right': 0.3
+                },
+                // Pipi naik
+                cheeks: {
+                    'cheek_puff': 0.3
+                }
+            },
+            sad: {
+                // Mulut cemberut
+                mouth: { 
+                    'mouth_sad': 0.8,
+                    'mouth_corner_down_left': 0.7,
+                    'mouth_corner_down_right': 0.7,
+                    'mouth_lower_down': 0.3
+                },
+                // Mata sayu
+                eyes: { 
+                    'eye_sad': 0.6,
+                    'eye_close_left': 0.3,
+                    'eye_close_right': 0.3,
+                    'eye_extra': 0.4
+                },
+                // Alis turun di tengah
+                eyebrows: { 
+                    'eyebrow_sad': 0.8,
+                    'eyebrow_down_left': 0.6,
+                    'eyebrow_down_right': 0.6,
+                    'eyebrow_troubled': 0.7
+                }
+            },
+            angry: {
+                // Mulut ketat
+                mouth: { 
+                    'mouth_angry': 0.8,
+                    'mouth_tight': 0.6,
+                    'mouth_corner_down_left': 0.4,
+                    'mouth_corner_down_right': 0.4
+                },
+                // Mata melotot
+                eyes: { 
+                    'eye_angry': 0.7,
+                    'eye_wide_left': 0.5,
+                    'eye_wide_right': 0.5,
+                    'eye_highlight_off': 0.5
+                },
+                // Alis cemberut
+                eyebrows: { 
+                    'eyebrow_angry': 0.9,
+                    'eyebrow_down_left': 0.8,
+                    'eyebrow_down_right': 0.8,
+                    'eyebrow_lower_left': 0.6,
+                    'eyebrow_lower_right': 0.6
+                }
+            },
+            surprised: {
+                // Mulut terbuka
+                mouth: { 
+                    'mouth_surprised': 0.9,
+                    'mouth_open': 0.7,
+                    'aa': 0.6,
+                    'oh': 0.5
+                },
+                // Mata melebar
+                eyes: { 
+                    'eye_surprised': 0.9,
+                    'eye_wide_left': 0.8,
+                    'eye_wide_right': 0.8,
+                    'eye_highlight': 0.7
+                },
+                // Alis naik tinggi
+                eyebrows: { 
+                    'eyebrow_surprised': 0.9,
+                    'eyebrow_up_left': 0.8,
+                    'eyebrow_up_right': 0.8,
+                    'eyebrow_raised': 0.7
+                }
+            },
+            neutral: {
+                mouth: {},
+                eyes: {},
+                eyebrows: {}
+            }
+        };
+
+        // Set emotion with full face expression
+        window.setEmotion = function(emotion) {
+            if (!currentVrm || !currentVrm.expressionManager) return;
+            
+            // Get all available expressions
+            const availableExpressions = currentVrm.expressionManager.expressions.map(e => e.expressionName);
+            console.log('Setting emotion:', emotion);
+            console.log('Available expressions:', availableExpressions);
+            
+            // Reset all expressions to 0
+            availableExpressions.forEach(exp => {
+                currentVrm.expressionManager.setValue(exp, 0);
+            });
+            
+            // Apply emotion
+            const emotionData = emotionExpressions[emotion] || emotionExpressions.neutral;
+            
+            // Helper function to set expression if available
+            const setExpression = (expName, value) => {
+                // Try exact match first
+                if (availableExpressions.includes(expName)) {
+                    currentVrm.expressionManager.setValue(expName, value);
+                    return true;
+                }
+                
+                // Try common variations
+                const variations = [
+                    expName,
+                    expName.toLowerCase(),
+                    expName.toUpperCase(),
+                    expName.replace(/_/g, ''),
+                    expName.replace(/_/g, '-')
+                ];
+                
+                for (const variant of variations) {
+                    if (availableExpressions.includes(variant)) {
+                        currentVrm.expressionManager.setValue(variant, value);
+                        return true;
+                    }
+                }
+                
+                // For VRM 0.0 compatibility - try simple expressions
+                const simpleMap = {
+                    'mouth_smile': 'happy',
+                    'mouth_sad': 'sad',
+                    'mouth_angry': 'angry',
+                    'mouth_surprised': 'surprised',
+                    'eye_smile': 'happy',
+                    'eye_sad': 'sad',
+                    'eye_angry': 'angry',
+                    'eye_wide': 'surprised',
+                    'eyebrow_up': 'surprised',
+                    'eyebrow_down': 'angry'
+                };
+                
+                if (simpleMap[expName] && availableExpressions.includes(simpleMap[expName])) {
+                    currentVrm.expressionManager.setValue(simpleMap[expName], value);
+                    return true;
+                }
+                
+                return false;
+            };
+            
+            // Apply face parts
+            let appliedCount = 0;
+            
+            // Mouth
+            if (emotionData.mouth) {
+                Object.entries(emotionData.mouth).forEach(([exp, value]) => {
+                    if (setExpression(exp, value)) appliedCount++;
+                });
+            }
+            
+            // Eyes
+            if (emotionData.eyes) {
+                Object.entries(emotionData.eyes).forEach(([exp, value]) => {
+                    if (setExpression(exp, value)) appliedCount++;
+                });
+            }
+            
+            // Eyebrows
+            if (emotionData.eyebrows) {
+                Object.entries(emotionData.eyebrows).forEach(([exp, value]) => {
+                    if (setExpression(exp, value)) appliedCount++;
+                });
+            }
+            
+            // Cheeks
+            if (emotionData.cheeks) {
+                Object.entries(emotionData.cheeks).forEach(([exp, value]) => {
+                    if (setExpression(exp, value)) appliedCount++;
+                });
+            }
+            
+            // Fallback to basic emotion if detailed expressions not available
+            if (appliedCount === 0) {
+                const basicEmotions = ['happy', 'sad', 'angry', 'surprised', 'neutral'];
+                if (basicEmotions.includes(emotion) && availableExpressions.includes(emotion)) {
+                    currentVrm.expressionManager.setValue(emotion, 1);
+                }
+            }
+            
+            info.textContent = `Emotion: ${emotion} (${appliedCount} expressions applied)`;
+            
+            // Auto reset after 5 seconds
+            setTimeout(() => {
+                window.setEmotion('neutral');
+            }, 5000);
+        };
+
+        // Enhanced speaking with natural head movement
+        window.startSpeaking = function(text, emotion = 'neutral') {
+            if (!currentVrm) return;
+            
+            isSpeaking = true;
+            headMovementTime = 0;
+            
+            // Set emotion while speaking
+            window.setEmotion(emotion);
+            
+            info.textContent = 'Speaking...';
+            const duration = Math.min(text.length * 60, 8000);
+            
+            // Lip sync
+            const vowels = text.match(/[aeiouAEIOU]/g) || [];
+            let vowelIndex = 0;
+            
+            const lipSyncInterval = setInterval(() => {
+                if (!currentVrm || !currentVrm.expressionManager) return;
+                
+                // Alternate between vowel shapes
+                const shapes = ['aa', 'ih', 'ou', 'ee', 'oh'];
+                const currentShape = shapes[vowelIndex % shapes.length];
+                
+                // Reset mouth shapes
+                shapes.forEach(shape => {
+                    currentVrm.expressionManager.setValue(shape, 0);
+                });
+                
+                // Set current mouth shape
+                const intensity = 0.6 + Math.random() * 0.3;
+                currentVrm.expressionManager.setValue(currentShape, intensity);
+                
+                vowelIndex++;
+            }, 150);
+            
+            // Stop speaking
+            setTimeout(() => {
+                clearInterval(lipSyncInterval);
+                isSpeaking = false;
+                
+                // Close mouth
+                ['aa', 'ih', 'ou', 'ee', 'oh'].forEach(shape => {
+                    if (currentVrm.expressionManager.getValue(shape) !== undefined) {
+                        currentVrm.expressionManager.setValue(shape, 0);
+                    }
+                });
+                
+                info.textContent = 'Ready';
+            }, duration);
+        };
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const deltaTime = clock.getDelta();
+            
+            if (currentVrm) {
+                // Update VRM
+                currentVrm.update(deltaTime);
+                
+                // Smooth look at interpolation
+                currentLookAtX += (targetLookAtX - currentLookAtX) * 0.1;
+                currentLookAtY += (targetLookAtY - currentLookAtY) * 0.1;
+                
+                // Update look at target position
+                if (!isSpeaking) {
+                    // Follow mouse when not speaking
+                    lookAtTarget.position.set(currentLookAtX, currentLookAtY, 2);
+                } else {
+                    // Look forward with natural movement when speaking
+                    headMovementTime += deltaTime;
+                    const headSway = Math.sin(headMovementTime * 2) * 0.1;
+                    const headNod = Math.sin(headMovementTime * 3) * 0.05;
+                    lookAtTarget.position.set(headSway, 1.5 + headNod, 2); // Face level
+                }
+                
+                // Body rotation
+                if (Math.abs(rotationSpeed) > 0.001) {
+                    currentVrm.scene.rotation.y += rotationSpeed;
+                    rotationSpeed *= 0.9;
+                }
+                
+                // Breathing
+                const breathing = Math.sin(clock.elapsedTime * 2) * 0.003;
+                if (currentVrm.humanoid) {
+                    const spine = currentVrm.humanoid.getNormalizedBoneNode('spine');
+                    const chest = currentVrm.humanoid.getNormalizedBoneNode('chest');
+                    const hips = currentVrm.humanoid.getNormalizedBoneNode('hips');
+                    const upperChest = currentVrm.humanoid.getNormalizedBoneNode('upperChest');
+                    
+                    if (spine) spine.position.y = breathing;
+                    if (chest) chest.position.y = breathing * 0.5;
+                    
+                    if (isSpeaking) {
+                        // Micro body movements while speaking
+                        const speakTime = clock.elapsedTime;
+                        
+                        // Subtle torso rotation left-right
+                        const torsoRotation = Math.sin(speakTime * 1.5) * 0.05;
+                        if (spine) {
+                            spine.rotation.y = torsoRotation;
+                        }
+                        
+                        // Hip sway
+                        const hipSway = Math.sin(speakTime * 1.2) * 0.02;
+                        if (hips) {
+                            hips.rotation.z = hipSway * 0.5;
+                            hips.position.x = hipSway;
+                        }
+                        
+                        // Upper body micro movements
+                        if (upperChest || chest) {
+                            const chestNode = upperChest || chest;
+                            chestNode.rotation.y = -torsoRotation * 0.7; // Counter rotation for natural look
+                            chestNode.rotation.z = Math.sin(speakTime * 2) * 0.02;
+                        }
+                        
+                        // Shoulder movements
+                        const leftShoulder = currentVrm.humanoid.getNormalizedBoneNode('leftShoulder');
+                        const rightShoulder = currentVrm.humanoid.getNormalizedBoneNode('rightShoulder');
+                        
+                        if (leftShoulder && rightShoulder) {
+                            const shoulderMove = Math.sin(speakTime * 1.8) * 0.03;
+                            leftShoulder.rotation.z = shoulderMove;
+                            rightShoulder.rotation.z = -shoulderMove;
+                        }
+                        
+                        // Overall body position sway
+                        currentVrm.scene.position.x = Math.sin(speakTime * 0.8) * 0.02;
+                        currentVrm.scene.position.z = Math.sin(speakTime * 1.1) * 0.01;
+                    } else {
+                        // Subtle idle sway
+                        const sway = Math.sin(clock.elapsedTime * 0.5) * 0.01;
+                        currentVrm.scene.position.x = sway;
+                    }
+                }
+                
+                // Auto blink (more natural timing)
+                if (Math.random() < 0.003 && currentVrm.expressionManager) {
+                    // Double blink sometimes
+                    const doubleBlinkChance = Math.random() < 0.3;
+                    
+                    currentVrm.expressionManager.setValue('blink', 1);
+                    setTimeout(() => {
+                        currentVrm.expressionManager.setValue('blink', 0);
+                        
+                        if (doubleBlinkChance) {
+                            setTimeout(() => {
+                                currentVrm.expressionManager.setValue('blink', 1);
+                                setTimeout(() => {
+                                    currentVrm.expressionManager.setValue('blink', 0);
+                                }, 120);
+                            }, 150);
+                        }
+                    }, 120);
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle messages
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'loadModel') {
+                loadVRM(event.data.path);
+            } else if (event.data.type === 'speak') {
+                // Extract emotion from text if provided
+                const emotion = event.data.emotion || 'neutral';
+                window.startSpeaking(event.data.text, emotion);
+            } else if (event.data.type === 'emotion') {
+                window.setEmotion(event.data.emotion);
+            }
+        });
+
+        // Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Load default - Galih Hoodie Esteh
+        loadVRM('vtuber/Galih Hoodie Esteh.vrm');
+
+        // Debug functions
+        window.debugVRM = {
+            vrm: () => currentVrm,
+            setEmotion: window.setEmotion,
+            speak: window.startSpeaking,
+            expressions: () => {
+                if (currentVrm && currentVrm.expressionManager) {
+                    return currentVrm.expressionManager.expressions.map(e => e.expressionName);
+                }
+            }
+        };
+    </script>
+</body>
+</html>

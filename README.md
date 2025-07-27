@@ -1,26 +1,29 @@
-# Bella AI - Asisten Virtual dengan Avatar Interaktif 🤖💝
+# Bella AI - Asisten Virtual dengan Avatar VRM 3D Interaktif 🤖💝
 
 <div align="center">
   <img src="Bellaicon/Generated image.webp" alt="Bella AI" width="200"/>
   
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Node.js](https://img.shields.io/badge/Node.js-v16+-green.svg)](https://nodejs.org/)
-  [![Live2D Avatar](https://img.shields.io/badge/Avatar-Live2D-ff69b4.svg)](https://www.live2d.com/)
+  [![VRM Avatar](https://img.shields.io/badge/Avatar-VRM%203D-ff69b4.svg)](https://vrm.dev/)
+  [![Three.js](https://img.shields.io/badge/Three.js-r158-blue.svg)](https://threejs.org/)
 </div>
 
 ## 🌟 Tentang Bella AI
 
-Bella AI adalah asisten virtual berbahasa Indonesia dengan avatar interaktif Live2D yang natural. Fork dari proyek open source [bella oleh jackywine](https://github.com/jackywine/bella) dan dikembangkan dengan fitur-fitur tambahan untuk pengguna Indonesia.
+Bella AI adalah asisten virtual berbahasa Indonesia dengan avatar VRM 3D interaktif yang natural. Fork dari proyek open source [bella oleh jackywine](https://github.com/jackywine/bella) dan dikembangkan dengan fitur-fitur tambahan untuk pengguna Indonesia.
 
 ### ✨ Fitur Utama
 
-- 🎭 **Avatar Live2D Interaktif** - Avatar 2D yang bergerak natural tanpa GPU
+- 🎭 **Avatar VRM 3D Interaktif** - 20+ model VTuber profesional dengan animasi real-time
 - 🗣️ **Voice Recognition** - Kenali suara dalam bahasa Indonesia & Inggris  
-- 🔊 **Text-to-Speech** - Bella berbicara dengan suara natural
+- 🔊 **Text-to-Speech** - Bella berbicara dengan suara natural + lip sync
 - 💬 **Multi-Provider AI** - Support Gemini, OpenAI, DeepSeek, dll
-- 😊 **Emotion Detection** - Avatar berubah ekspresi sesuai emosi
+- 😊 **Emotion Detection** - Avatar berubah ekspresi sesuai emosi (mata, mulut, alis)
 - 🌐 **100% Bahasa Indonesia** - UI dan respons dalam bahasa Indonesia
-- 🚀 **Ringan & Cepat** - Tidak butuh GPU, jalan di semua device
+- 👁️ **Eye Tracking** - Mata avatar mengikuti cursor mouse
+- 🎮 **Body Movement** - Gerakan badan natural saat berbicara
+- 🚀 **WebGL Powered** - Performa smooth dengan Three.js
 
 ## 📋 Requirements
 
@@ -90,10 +93,11 @@ Buka browser dan akses: http://localhost:8081
 
 ### Pilih Avatar
 1. Klik tombol **"Choose Avatar"** di kanan atas
-2. Pilih dari galeri:
-   - **VRM Models**: Model 3D profesional
-   - **Live2D Models**: Model 2D animasi (coming soon)
-3. Klik avatar yang diinginkan
+2. Pilih dari galeri 20+ model:
+   - **Galih Series**: 4 variasi (default: Galih Hoodie Esteh)
+   - **Anime Characters**: Ai Hoshino, Anya Forger, Nezuko, Fern
+   - **Original Characters**: Aria, Cesilia, Lilac, Maya, Rose, dll
+3. Preview 3D real-time di galeri
 4. Klik **"Gunakan Avatar Ini"**
 
 ### Voice Chat
@@ -134,31 +138,43 @@ Buka browser dan akses: http://localhost:8081
 
 ## 🎭 Fitur Avatar
 
-### Avatar Selection System
-- 🎨 **Choose Avatar** - Pilih dari 20+ model VTuber yang tersedia
-- 🎮 **Support VRM & Live2D** - Kompatibel dengan format 3D dan 2D
-- 🖼️ **Preview Gallery** - Lihat preview sebelum memilih
+### Avatar VRM 3D System  
+- 🎨 **20+ Model VTuber** - Koleksi lengkap avatar profesional
+- 🖼️ **Live 3D Preview** - Preview real-time sebelum memilih
 - 🔄 **Instant Switch** - Ganti avatar tanpa reload halaman
+- ⚡ **WebGL Accelerated** - Performa optimal dengan Three.js
 
-### Avatar Live2D (Default)
-Avatar Bella memiliki animasi natural:
-- 👀 **Mata mengikuti cursor mouse**
-- 😊 **Berkedip otomatis** setiap beberapa detik
-- 🗣️ **Mulut bergerak** saat berbicara
-- 🎭 **Ekspresi berubah** sesuai emosi:
-  - 😄 Happy: pipi merona, senyum
-  - 😢 Sad: air mata, cemberut
-  - 😠 Angry: alis turun, mulut datar
-  - 😮 Surprised: alis naik, mata membesar
-- 🫁 **Animasi breathing** yang halus
-- 🎯 **Kepala bergerak** mengikuti mouse
+### Model Default: Galih Hoodie Esteh
+Avatar default Bella menggunakan model **Galih Hoodie Esteh** dengan fitur:
+- 👀 **Eye Tracking** - Mata mengikuti cursor mouse real-time
+- 😊 **Auto Blinking** - Kedip natural setiap 3-5 detik
+- 🗣️ **Lip Sync** - Sinkronisasi mulut dengan speech
+- 🎭 **Full Face Expressions**:
+  - 😄 **Happy**: Senyum lebar, mata menyipit, alis naik
+  - 😢 **Sad**: Mulut cemberut, mata sayu, alis turun
+  - 😠 **Angry**: Mulut ketat, mata melotot, alis cemberut
+  - 😮 **Surprised**: Mulut terbuka, mata melebar, alis naik tinggi
+- 🫁 **Breathing Animation** - Napas naik-turun natural
+- 🎮 **Body Movement** - Gerakan torso, bahu, pinggul saat bicara
+- 🎯 **Head Tracking** - Kepala mengikuti arah pandangan
 
-### VRM 3D Models
-Model VTuber 3D yang tersedia:
-- **Galih Hoodie** series (4 variasi)
-- Full body animation support
-- Professional grade VRM models
-- Lip sync dengan speech synthesis
+### Koleksi Model VRM
+**Galih Series (4 models)**
+- Galih Hoodie (casual)
+- Galih Hoodie Edmuku 
+- Galih Hoodie Esteh ⭐ (default)
+- Galih T-shirt Aveecena
+
+**Anime Characters (4 models)**
+- Ai Hoshino (Oshi no Ko)
+- Anya Forger (Spy x Family)
+- Nezuko Kamado (Demon Slayer)
+- Fern (Frieren)
+
+**Original Characters (12 models)**
+- Aria, Cesilia, DUST, Goldy
+- Kokuyou (v0 & v1), Lilac, Maya
+- Mura Mura, Niya, Rose, dan lainnya
 
 ## 📁 Struktur Project
 
@@ -169,11 +185,14 @@ bella-ai/
 ├── core.js             # AI core engine
 ├── chatInterface.js    # UI chat component
 ├── videoManager.js     # Emotion video manager
-├── live2dIntegration.js # Avatar Live2D
+├── vrm-interactive.html # VRM avatar viewer
+├── avatarSelector.html # Avatar selection gallery
+├── vtuberModels.js     # VRM model database
 ├── cloudAPI.js         # Cloud AI integration
 ├── style.css           # Styling utama
 ├── chatStyles.css      # Styling chat
 ├── models/             # Model AI offline
+├── vtuber/             # 20+ VRM avatar models
 ├── 视频资源/           # Video resources
 └── vendor/             # Dependencies
 ```

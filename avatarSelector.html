@@ -47,10 +47,11 @@
         
         .avatar-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 20px;
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
+            padding: 0 20px;
         }
         
         .avatar-card {
@@ -70,11 +71,17 @@
         .avatar-preview {
             width: 100%;
             height: 200px;
-            object-fit: cover;
             background: rgba(0, 0, 0, 0.2);
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .avatar-preview canvas {
+            width: 100% !important;
+            height: 100% !important;
         }
         
         .avatar-preview img {
@@ -86,6 +93,11 @@
         .no-preview {
             color: rgba(255, 255, 255, 0.5);
             font-size: 14px;
+        }
+        
+        .loading-preview {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
         }
         
         .avatar-info {
@@ -154,14 +166,106 @@
         <button class="use-avatar-btn" onclick="useSelectedAvatar()">Gunakan Avatar Ini</button>
     </div>
     
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@2.0.7/lib/three-vrm.module.js"
+        }
+    }
+    </script>
+    
     <script type="module">
         import { getAllModels, getModelsByType } from './vtuberModels.js';
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRMLoaderPlugin } from '@pixiv/three-vrm';
         
         let selectedAvatar = null;
         let currentFilter = 'all';
+        const previewRenderers = new Map();
+        
+        // Create VRM preview renderer
+        function createVRMPreview(container, modelPath) {
+            console.log('Creating preview for:', modelPath);
+            
+            // Show loading
+            container.innerHTML = '<div class="loading-preview">Loading preview...</div>';
+            
+            // Setup mini scene
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            
+            const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 10); // Square aspect ratio for preview
+            camera.position.set(0, 1.4, 2); // Closer for better preview
+            
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+            container.innerHTML = '';
+            container.appendChild(renderer.domElement);
+            
+            // Lighting
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(1, 1, 1);
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            
+            // Load VRM
+            const loader = new GLTFLoader();
+            loader.register((parser) => new VRMLoaderPlugin(parser));
+            
+            loader.load(
+                modelPath,
+                async (gltf) => {
+                    const vrm = gltf.userData.vrm;
+                    if (!vrm) return;
+                    
+                    scene.add(vrm.scene);
+                    vrm.scene.rotation.y = Math.PI;
+                    
+                    // Natural pose
+                    if (vrm.humanoid) {
+                        const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                        const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+                        if (leftArm) leftArm.rotation.z = Math.PI / 2.2;
+                        if (rightArm) rightArm.rotation.z = -Math.PI / 2.2;
+                    }
+                    
+                    // Simple rotation animation
+                    let rotation = 0;
+                    function animate() {
+                        if (!container.isConnected) return; // Stop if removed from DOM
+                        
+                        requestAnimationFrame(animate);
+                        rotation += 0.01;
+                        vrm.scene.rotation.y = Math.PI + Math.sin(rotation) * 0.3;
+                        vrm.update(0.016);
+                        renderer.render(scene, camera);
+                    }
+                    animate();
+                    
+                    // Store renderer for cleanup
+                    previewRenderers.set(container, { renderer, scene });
+                },
+                undefined,
+                (error) => {
+                    console.error('Preview error:', error);
+                    container.innerHTML = '<div class="no-preview">Preview failed</div>';
+                }
+            );
+        }
         
         function renderAvatars(models) {
             const grid = document.getElementById('avatar-grid');
+            
+            // Clean up old renderers
+            previewRenderers.forEach(({ renderer }) => {
+                renderer.dispose();
+            });
+            previewRenderers.clear();
+            
             grid.innerHTML = '';
             
             models.forEach(model => {
@@ -169,19 +273,27 @@
                 card.className = 'avatar-card';
                 card.onclick = () => selectAvatar(model);
                 
-                card.innerHTML = `
-                    <div class="avatar-preview">
-                        ${model.preview ? 
-                            `<img src="${model.preview}" alt="${model.name}" onerror="this.parentElement.innerHTML='<div class=\\'no-preview\\'>No Preview</div>'">` : 
-                            '<div class="no-preview">No Preview</div>'
-                        }
-                    </div>
-                    <div class="avatar-info">
-                        <div class="avatar-name">${model.name}</div>
-                        <span class="avatar-type">${model.type}</span>
-                    </div>
+                const previewDiv = document.createElement('div');
+                previewDiv.className = 'avatar-preview';
+                
+                // Create VRM preview for VRM models
+                if (model.type === 'VRM') {
+                    createVRMPreview(previewDiv, model.path);
+                } else if (model.preview) {
+                    previewDiv.innerHTML = `<img src="${model.preview}" alt="${model.name}">`;
+                } else {
+                    previewDiv.innerHTML = '<div class="no-preview">No Preview</div>';
+                }
+                
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'avatar-info';
+                infoDiv.innerHTML = `
+                    <div class="avatar-name">${model.name}</div>
+                    <span class="avatar-type">${model.type}</span>
                 `;
                 
+                card.appendChild(previewDiv);
+                card.appendChild(infoDiv);
                 grid.appendChild(card);
             });
         }

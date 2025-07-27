@@ -88,7 +88,7 @@
         <select id="model-select">
             <option value="vtuber/Galih Hoodie.vrm">Galih Hoodie</option>
             <option value="vtuber/Galih Hoodie Edmuku.vrm">Galih Hoodie Edmuku</option>
-            <option value="vtuber/Galih Hoodie Esteh.vrm">Galih Hoodie Esteh</option>
+            <option value="vtuber/Galih Hoodie Esteh.vrm" selected>Galih Hoodie Esteh</option>
             <option value="vtuber/Galih T shirt Aveecena.vrm">Galih T-shirt</option>
         </select>
     </div>
@@ -105,11 +105,24 @@
     </div>
 
     <!-- Three.js and VRM libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@1.0.0/lib/three-vrm.min.js"></script>
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script>
+        // After THREE is loaded, we need to expose it globally for the loader scripts
+        window.THREE = THREE;
+    </script>
+    <script src="https://unpkg.com/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://unpkg.com/@pixiv/three-vrm@1.0.11/lib/three-vrm.min.js"></script>
 
     <script>
+        // Check if libraries are loaded
+        // Wait for all scripts to load
+        window.addEventListener('load', () => {
+            console.log('THREE loaded:', typeof THREE !== 'undefined');
+            console.log('THREE.GLTFLoader loaded:', typeof THREE !== 'undefined' && typeof THREE.GLTFLoader !== 'undefined');
+            console.log('THREE.VRM loaded:', typeof THREE !== 'undefined' && typeof THREE.VRM !== 'undefined');
+            console.log('Available THREE properties:', Object.keys(THREE).filter(k => k.includes('Loader')).join(', '));
+        });
+        
         // Three.js setup
         const scene = new THREE.Scene();
         scene.background = null; // Transparent background
@@ -163,17 +176,30 @@
         async function loadVRM(modelPath) {
             document.getElementById('loading').style.display = 'block';
             
+            // GLTFLoader is added to THREE namespace when loaded as example script
+            if (!THREE.GLTFLoader) {
+                console.error('GLTFLoader not found! Make sure the script is loaded.');
+                document.getElementById('loading').textContent = 'GLTFLoader not loaded!';
+                return;
+            }
             const loader = new THREE.GLTFLoader();
             
             try {
+                console.log('Starting to load VRM model:', modelPath);
+                
                 const gltf = await new Promise((resolve, reject) => {
                     loader.load(
                         modelPath,
                         resolve,
                         (progress) => {
-                            console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%');
+                            const percent = (progress.loaded / progress.total * 100).toFixed(2);
+                            console.log('Loading progress:', percent + '%');
+                            document.getElementById('loading').textContent = `Loading VRM Model... ${percent}%`;
                         },
-                        reject
+                        (error) => {
+                            console.error('Failed to load model:', error);
+                            reject(error);
+                        }
                     );
                 });
                 
@@ -201,7 +227,13 @@
                 
             } catch (error) {
                 console.error('Error loading VRM:', error);
-                document.getElementById('loading').textContent = 'Error loading model!';
+                document.getElementById('loading').innerHTML = `
+                    <div style="color: #ff6b6b;">
+                        Error loading model!<br>
+                        <small>${error.message || error}</small><br>
+                        <small>Check browser console for details</small>
+                    </div>
+                `;
             }
         }
         
@@ -250,11 +282,12 @@
             animate();
         }
         
-        // Mouse tracking
-        let mouseX = 0, mouseY = 0;
+        // Mouse tracking for eye movement
         window.addEventListener('mousemove', (event) => {
-            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
-            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+            if (event.buttons === 0) { // Only track eye when not dragging
+                mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+                mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+            }
         });
         
         function lookAtMouse() {
@@ -472,8 +505,8 @@
             }
         });
         
-        // Load default model
-        loadVRM('vtuber/Galih Hoodie.vrm');
+        // Load default model - Galih Hoodie Esteh
+        loadVRM('vtuber/Galih Hoodie Esteh.vrm');
     </script>
 </body>
 </html>

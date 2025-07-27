@@ -61,6 +61,8 @@
 
         // Check if running in iframe
         console.log('VRM Avatar Fixed - Initializing...');
+        console.log('Window location:', window.location.href);
+        console.log('Parent window:', window.parent !== window);
 
         // Scene setup
         const scene = new THREE.Scene();
@@ -128,6 +130,11 @@
         // Load VRM
         async function loadVRM(url) {
             try {
+                console.log('loadVRM called with:', url);
+                console.log('THREE loaded?', typeof THREE !== 'undefined');
+                console.log('GLTFLoader available?', typeof GLTFLoader !== 'undefined');
+                console.log('VRMLoaderPlugin available?', typeof VRMLoaderPlugin !== 'undefined');
+                
                 info.textContent = 'Loading VRM model...';
                 
                 const loader = new GLTFLoader();
@@ -410,6 +417,7 @@
 
         // Listen for messages from parent
         window.addEventListener('message', (event) => {
+            console.log('VRM iframe received message:', event.data);
             if (event.data.type === 'loadModel') {
                 console.log('Received loadModel message:', event.data.path);
                 loadVRM(event.data.path);
@@ -436,7 +444,10 @@
         });
 
         // Load default model - Galih Hoodie Esteh
-        loadVRM('vtuber/Galih Hoodie Esteh.vrm');
+        console.log('Loading default VRM model...');
+        loadVRM('vtuber/Galih Hoodie Esteh.vrm').catch(err => {
+            console.error('Failed to load default model:', err);
+        });
 
         // Expose for debugging
         window.debugVRM = {

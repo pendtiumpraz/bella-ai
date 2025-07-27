@@ -270,6 +270,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                     
                     // Show VRM iframe
                     const vrmFrame = document.getElementById('vrm-avatar');
+                    if (!vrmFrame) {
+                        console.error('VRM iframe not found!');
+                        return;
+                    }
+                    
                     // Keep using vrm-avatar.html
                     vrmFrame.style.display = 'block';
                     
@@ -279,8 +284,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                     vrmFrame.style.position = 'absolute';
                     vrmFrame.style.top = '0';
                     vrmFrame.style.left = '0';
+                    vrmFrame.style.zIndex = '10'; // Make sure it's on top
+                    vrmFrame.style.border = 'none';
+                    vrmFrame.style.backgroundColor = 'rgba(255,0,0,0.1)'; // Debug: red tint to see if iframe is visible
                     
                     console.log('VRM frame visibility:', vrmFrame.style.display);
+                    console.log('VRM frame src:', vrmFrame.src);
+                    console.log('VRM frame computed style:', window.getComputedStyle(vrmFrame).display);
                     
                     // Wait for iframe to load then send message
                     if (vrmFrame.contentWindow) {

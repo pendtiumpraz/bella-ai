@@ -483,6 +483,24 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (voiceUI) {
             voiceUI.setStatus('AI Ready');
         }
+        
+        // Check if API key is configured
+        if (bellaAI && bellaAI.cloudAPI) {
+            const hasApiKey = bellaAI.cloudAPI.checkAPIKey();
+            if (!hasApiKey) {
+                console.warn('No API key configured!');
+                
+                // Show warning in chat
+                setTimeout(() => {
+                    if (chatInterface) {
+                        chatInterface.addMessage('system', '⚠️ API key belum diset! Klik ⚙️ di chat untuk menambahkan API key (Gemini/OpenAI/dll)');
+                    }
+                    if (voiceUI) {
+                        voiceUI.setStatus('Need API key');
+                    }
+                }, 2000);
+            }
+        }
     } catch (error) {
         console.error('Failed to initialize Bella AI:', error);
         if (voiceUI) {
@@ -784,9 +802,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                     // Update Voice UI status
                     voiceUI.setStatus('AI thinking...');
                     
+                    console.log('Processing voice input:', userText);
+                    console.log('BellaAI instance:', bellaAI);
+                    console.log('Using cloud API:', bellaAI?.useCloudAPI);
+                    console.log('Current provider:', bellaAI?.cloudAPI?.currentProvider);
+                    
                     const response = await bellaAI.think(userText);
                     
-                    voiceUI.updateTranscript(`${selectedAvatar ? selectedAvatar.name : 'AI'}: ${response}`);
+                    console.log('AI response:', response);
+                    
+                    voiceUI.updateTranscript(`${currentAvatarName || 'AI'}: ${response}`);
                     voiceUI.setStatus('Speaking...');
 
                     // 如果聊天界面已打开，也在聊天窗口中显示
@@ -832,7 +857,20 @@ document.addEventListener('DOMContentLoaded', async function() {
 
                 } catch (error) {
                     console.error('AI processing error:', error);
-                    const errorMsg = 'AI mengalami masalah saat memproses, tapi masih berusaha belajar...';
+                    
+                    let errorMsg = 'AI mengalami masalah saat memproses';
+                    
+                    // Check specific error types
+                    if (error.message?.includes('API key')) {
+                        errorMsg = 'API key belum diset. Buka chat settings untuk menambahkan API key.';
+                    } else if (error.message?.includes('network')) {
+                        errorMsg = 'Koneksi internet bermasalah. Cek koneksi Anda.';
+                    } else if (error.message?.includes('quota')) {
+                        errorMsg = 'Quota API habis. Coba provider lain di settings.';
+                    } else {
+                        errorMsg = `Error: ${error.message || 'Unknown error'}`;
+                    }
+                    
                     voiceUI.updateTranscript(errorMsg);
                     voiceUI.setStatus('Error');
                     

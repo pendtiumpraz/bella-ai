@@ -35,6 +35,13 @@ class BellaAI {
     async init() {
         console.log('Initializing Bella\'s core AI...');
         
+        // Check for config override
+        if (window.BELLA_CONFIG && window.BELLA_CONFIG.skipLocalModels) {
+            console.log('Config override: Skipping local models');
+            this.useCloudAPI = true;
+            return; // Skip all model loading
+        }
+        
         // Skip loading local model - use Cloud API instead
         console.log('Skipping local model loading - using Cloud API');
         this.useCloudAPI = true;

@@ -915,19 +915,35 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             if (!isListening) {
                 try {
+                    // Check if recognition is already running
+                    if (recognition.state === 'running') {
+                        console.log('Recognition already running, stopping first');
+                        recognition.stop();
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                    
                     isListening = true;
                     recognition.start();
                     voiceUI.setStatus('Listening...');
                 } catch (err) {
                     console.error('Failed to start recognition:', err);
-                    voiceUI.setStatus('Failed to start');
-                    isListening = false;
-                    voiceUI.stopListening();
+                    if (err.name === 'InvalidStateError') {
+                        // Try to stop and restart
+                        recognition.stop();
+                        isListening = false;
+                        voiceUI.stopListening();
+                        voiceUI.setStatus('Click again to start');
+                    } else {
+                        voiceUI.setStatus('Failed to start');
+                        isListening = false;
+                        voiceUI.stopListening();
+                    }
                 }
             } else {
                 isListening = false;
                 recognition.stop();
                 voiceUI.stopListening();
+                voiceUI.setStatus('Ready');
             }
         };
     } else {

@@ -420,7 +420,22 @@
             console.log('VRM iframe received message:', event.data);
             if (event.data.type === 'loadModel') {
                 console.log('Received loadModel message:', event.data.path);
-                loadVRM(event.data.path);
+                
+                // Fix path if needed
+                let modelPath = event.data.path;
+                if (!modelPath.startsWith('http') && !modelPath.startsWith('/')) {
+                    // Calculate correct path
+                    let basePath = '';
+                    if (window.location.pathname.includes('/bella-ai/')) {
+                        basePath = window.location.pathname.split('/bella-ai/')[0] + '/bella-ai/';
+                    } else if (window.location.pathname.includes('/public/chat/')) {
+                        basePath = window.location.pathname.split('/public/chat/')[0] + '/public/chat/';
+                    }
+                    modelPath = basePath + modelPath;
+                }
+                
+                console.log('Loading model from path:', modelPath);
+                loadVRM(modelPath);
             } else if (event.data.type === 'speak') {
                 console.log('Received speak message:', event.data.text);
                 const emotion = event.data.emotion || 'neutral';
@@ -445,8 +460,26 @@
 
         // Load default model - Galih Hoodie Esteh
         console.log('Loading default VRM model...');
-        loadVRM('vtuber/Galih Hoodie Esteh.vrm').catch(err => {
+        console.log('Current location:', window.location.href);
+        
+        // Calculate correct path based on location
+        let basePath = '';
+        if (window.location.pathname.includes('/bella-ai/')) {
+            basePath = window.location.pathname.split('/bella-ai/')[0] + '/bella-ai/';
+        } else if (window.location.pathname.includes('/public/chat/')) {
+            basePath = window.location.pathname.split('/public/chat/')[0] + '/public/chat/';
+        }
+        
+        const modelPath = basePath + 'vtuber/Galih Hoodie Esteh.vrm';
+        console.log('Attempting to load model from:', modelPath);
+        
+        loadVRM(modelPath).catch(err => {
             console.error('Failed to load default model:', err);
+            // Try alternative path
+            console.log('Trying alternative path...');
+            loadVRM('vtuber/Galih Hoodie Esteh.vrm').catch(err2 => {
+                console.error('Alternative path also failed:', err2);
+            });
         });
 
         // Expose for debugging

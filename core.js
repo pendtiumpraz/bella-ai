@@ -35,7 +35,12 @@ class BellaAI {
     async init() {
         console.log('Initializing Bella\'s core AI...');
         
-        // 优先加载LLM模型（聊天功能）
+        // Skip loading local model - use Cloud API instead
+        console.log('Skipping local model loading - using Cloud API');
+        this.useCloudAPI = true;
+        
+        // Commented out local model loading for better performance
+        /*
         try {
             console.log('Loading LLM model...');
             this.llm = await pipeline('text2text-generation', 'Xenova/LaMini-Flan-T5-77M', {
@@ -46,7 +51,13 @@ class BellaAI {
             console.error('Failed to load LLM model:', error);
             // LLM加载失败，但不阻止初始化
         }
+        */
         
+        // Skip ASR model loading for better performance
+        console.log('Skipping ASR model - using browser speech recognition');
+        this.asr = null;
+        
+        /*
         // 尝试加载ASR模型（语音识别功能）
         try {
             console.log('Loading ASR model...');
@@ -59,6 +70,7 @@ class BellaAI {
             // ASR加载失败，但不影响聊天功能
             this.asr = null;
         }
+        */
 
         // TTS模型暂时禁用
         // try {

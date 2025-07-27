@@ -1,0 +1,60 @@
+# Bella AI .htaccess Configuration
+
+# Enable CORS for all origins
+Header set Access-Control-Allow-Origin "*"
+Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+
+# Set MIME types for 3D models
+AddType model/gltf-binary .vrm
+AddType model/gltf-binary .glb
+AddType model/gltf+json .gltf
+AddType application/octet-stream .bin
+AddType application/octet-stream .onnx
+
+# Enable CORS specifically for model files
+<FilesMatch "\.(vrm|glb|gltf|json|bin|onnx)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET"
+</FilesMatch>
+
+# Disable caching for development
+<FilesMatch "\.(html|js|css)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires 0
+</FilesMatch>
+
+# Enable compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/rss+xml
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/x-javascript
+    AddOutputFilterByType DEFLATE application/json
+</IfModule>
+
+# Security headers
+Header set X-Content-Type-Options "nosniff"
+Header set X-Frame-Options "SAMEORIGIN"
+Header set X-XSS-Protection "1; mode=block"
+
+# PHP settings (if allowed by hosting)
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 100M
+    php_value post_max_size 100M
+    php_value memory_limit 256M
+    php_value max_execution_time 300
+</IfModule>
+
+# Redirect to HTTPS (if SSL is enabled)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>

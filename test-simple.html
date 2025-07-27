@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Bella</title>
+    <style>
+        body {
+            font-family: Arial;
+            text-align: center;
+            padding: 50px;
+            background: #f0f0f0;
+        }
+        .status {
+            background: #4CAF50;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px auto;
+            max-width: 600px;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎉 Bella Server Test</h1>
+    <div class="status">
+        <h2>✅ Server berjalan dengan baik!</h2>
+        <p>Jika Anda bisa melihat halaman ini, berarti server sudah OK.</p>
+    </div>
+    
+    <div>
+        <button onclick="window.location.href='index.html'">Buka Bella AI</button>
+        <button onclick="testJS()">Test JavaScript</button>
+    </div>
+    
+    <div id="result"></div>
+    
+    <script>
+        function testJS() {
+            document.getElementById('result').innerHTML = '<h3 style="color: green;">✅ JavaScript juga berfungsi!</h3>';
+        }
+        
+        console.log('Test page loaded successfully!');
+    </script>
+</body>
+</html>

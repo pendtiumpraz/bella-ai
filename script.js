@@ -365,6 +365,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         bellaAI = await BellaAI.getInstance();
         console.log('Bella AI 初始化成功');
         
+        // Auto-load API keys if available
+        if (window.BELLA_API_KEYS) {
+            console.log('Loading API keys from config...');
+            for (const [provider, apiKey] of Object.entries(window.BELLA_API_KEYS)) {
+                if (apiKey && apiKey !== 'YOUR_' + provider.toUpperCase() + '_API_KEY') {
+                    console.log(`Setting ${provider} API key`);
+                    bellaAI.cloudAPI.setAPIKey(provider, apiKey);
+                }
+            }
+        }
+        
         // 设置聊天界面的AI回调函数
         if (chatInterface) {
             chatInterface.onMessageSend = async (message) => {

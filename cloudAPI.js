@@ -86,10 +86,19 @@ class CloudAPIService {
                     'Content-Type': 'application/json'
                 },
                 apiKey: 'AIzaSyBgVNvJp88oDPsqERwMbZCjCV6fqDXIShg'
+            },
+            // Groq配置 - Fast LLama models
+            groq: {
+                baseURL: 'https://api.groq.com/openai/v1/chat/completions',
+                model: 'llama3-70b-8192',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer YOUR_GROQ_API_KEY'
+                }
             }
         };
         
-        this.currentProvider = 'openai'; // 默认使用OpenAI
+        this.currentProvider = 'groq'; // 默认使用Groq (fast & free)
         this.conversationHistory = [];
         this.maxHistoryLength = 10; // 保持最近10轮对话
     }
@@ -99,7 +108,7 @@ class CloudAPIService {
         if (this.apiConfigs[provider]) {
             if (provider === 'openai' || provider === 'qwen' || provider === 'glm' || 
                 provider === 'hyperbolic_deepseek_v3' || provider === 'hyperbolic_deepseek_r1' || 
-                provider === 'hyperbolic_qwen' || provider === 'openrouter') {
+                provider === 'hyperbolic_qwen' || provider === 'openrouter' || provider === 'groq') {
                 this.apiConfigs[provider].headers['Authorization'] = `Bearer ${apiKey}`;
             } else if (provider === 'ernie') {
                 this.apiConfigs[provider].accessToken = apiKey;
@@ -196,6 +205,9 @@ Selalu pertahankan kepribadian yang hangat dan elegan ini.`
                     break;
                 case 'gemini':
                     response = await this.callGemini(userMessage);
+                    break;
+                case 'groq':
+                    response = await this.callGroq(userMessage);
                     break;
                 default:
                     throw new Error(`Provider AI belum diimplementasi: ${this.currentProvider}`);
@@ -451,6 +463,40 @@ Selalu pertahankan kepribadian yang hangat dan elegan ini.`
         return data.candidates[0].content.parts[0].text.trim();
     }
 
+    // 调用Groq API
+    async callGroq(userMessage) {
+        const config = this.apiConfigs.groq;
+        const requestBody = {
+            model: config.model,
+            messages: [
+                this.getBellaSystemPrompt(),
+                ...this.conversationHistory,
+                { role: 'user', content: userMessage }
+            ],
+            temperature: 0.8,
+            max_tokens: 512,
+            top_p: 0.9,
+            stream: false
+        };
+
+        console.log('Calling Groq API...');
+        
+        const response = await fetch(config.baseURL, {
+            method: 'POST',
+            headers: config.headers,
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.text();
+            console.error('Groq API Error:', errorData);
+            throw new Error(`Error Groq API: ${response.status} - ${errorData}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+    }
+
     // 清除对话历史
     clearHistory() {
         this.conversationHistory = [];
@@ -479,7 +525,8 @@ Selalu pertahankan kepribadian yang hangat dan elegan ini.`
                    config.headers['Authorization'] !== 'Bearer YOUR_QWEN_API_KEY' &&
                    config.headers['Authorization'] !== 'Bearer YOUR_GLM_API_KEY' &&
                    config.headers['Authorization'] !== 'Bearer YOUR_HYPERBOLIC_API_KEY' &&
-                   config.headers['Authorization'] !== 'Bearer YOUR_OPENROUTER_API_KEY';
+                   config.headers['Authorization'] !== 'Bearer YOUR_OPENROUTER_API_KEY' &&
+                   config.headers['Authorization'] !== 'Bearer YOUR_GROQ_API_KEY';
         }
     }
 }

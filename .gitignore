@@ -14,3 +14,9 @@
 ._*
 .Spotlight-V100
 .Trashes
+
+# API Keys (keep private!)
+api-keys.js
+api-keys.json
+.env
+.env.local

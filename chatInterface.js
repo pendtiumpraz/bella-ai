@@ -401,6 +401,11 @@ class ChatInterface {
         this.messages = [];
         this.addWelcomeMessage();
     }
+    
+    // Clear chat method
+    clearChat() {
+        this.clearMessages();
+    }
 
     // 滚动到底部
     scrollToBottom() {

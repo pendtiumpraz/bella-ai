@@ -32,16 +32,20 @@ document.addEventListener('DOMContentLoaded', async function() {
     const avatarContainer = document.getElementById('avatar-container');
     const videoContainer = document.getElementById('video-container');
     
+    // Hide the video mode toggle button
+    if (toggleBtn) {
+        toggleBtn.style.display = 'none';
+    }
+    
     // Set initial state to avatar mode
     if (isAvatarMode) {
         videoContainer.style.display = 'none';
         avatarContainer.style.display = 'flex';
-        toggleBtn.innerHTML = '<i class="fas fa-film"></i> Switch to Video';
         video1.pause();
         video2.pause();
     }
     
-    toggleBtn.addEventListener('click', () => {
+    toggleBtn?.addEventListener('click', () => {
         isAvatarMode = !isAvatarMode;
         
         if (isAvatarMode) {
@@ -111,11 +115,40 @@ document.addEventListener('DOMContentLoaded', async function() {
                 // Update chat interface with avatar name
                 if (chatInterface) {
                     chatInterface.updateAssistant(selectedAvatar.name, '🎭');
+                    
+                    // Clear chat history
+                    chatInterface.clearChat();
+                    
+                    // Add greeting from new avatar
+                    setTimeout(() => {
+                        const greetings = {
+                            'Ai Hoshino': 'Halo! Aku Ai Hoshino dari B-Komachi! Senang bertemu denganmu! ✨',
+                            'Anya Forger': 'Waku waku! Anya suka kacang! Mau main sama Anya? 🥜',
+                            'Nezuko Kamado': 'Mmm... mmm! *mengangguk senang* 🎋',
+                            'Fern': 'Halo, aku Fern. Ada yang bisa kubantu hari ini? 🌿',
+                            'default': `Halo! Aku ${selectedAvatar.name}. Senang bertemu denganmu! 😊`
+                        };
+                        
+                        const greeting = greetings[selectedAvatar.name] || greetings['default'];
+                        chatInterface.addMessage('assistant', greeting);
+                    }, 1500);
                 }
                 
                 // Update AI cloud service with avatar name
                 if (bellaAI && bellaAI.cloudAPI) {
                     bellaAI.cloudAPI.updateAssistantName(selectedAvatar.name);
+                    
+                    // Set personality based on character
+                    const personalities = {
+                        'Ai Hoshino': 'Kamu adalah Ai Hoshino, idol dari grup B-Komachi. Kamu ceria, penuh semangat, dan selalu berusaha membuat fans senang.',
+                        'Anya Forger': 'Kamu adalah Anya Forger dari Spy x Family. Kamu anak kecil yang lucu, suka kacang, dan bisa baca pikiran. Gunakan kata "waku waku" saat excited.',
+                        'Nezuko Kamado': 'Kamu adalah Nezuko Kamado dari Demon Slayer. Kamu tidak bisa bicara banyak, hanya "mmm" atau anggukan, tapi sangat peduli dan protektif.',
+                        'Fern': 'Kamu adalah Fern dari Frieren. Kamu penyihir muda yang tenang, dewasa, dan bertanggung jawab.'
+                    };
+                    
+                    if (personalities[selectedAvatar.name]) {
+                        bellaAI.cloudAPI.systemPrompt = personalities[selectedAvatar.name];
+                    }
                 }
                 
                 // Hide all avatars first
@@ -139,14 +172,26 @@ document.addEventListener('DOMContentLoaded', async function() {
                     
                     console.log('VRM frame visibility:', vrmFrame.style.display);
                     
-                    // Send message to VRM iframe to load model
-                    setTimeout(() => {
+                    // Wait for iframe to load then send message
+                    if (vrmFrame.contentWindow) {
+                        // If already loaded, send immediately
                         vrmFrame.contentWindow.postMessage({
                             type: 'loadModel',
                             path: selectedAvatar.path
                         }, '*');
                         console.log('Sent loadModel message for:', selectedAvatar.path);
-                    }, 500);
+                    } else {
+                        // Wait for iframe to load
+                        vrmFrame.onload = () => {
+                            setTimeout(() => {
+                                vrmFrame.contentWindow.postMessage({
+                                    type: 'loadModel',
+                                    path: selectedAvatar.path
+                                }, '*');
+                                console.log('Sent loadModel message after iframe load:', selectedAvatar.path);
+                            }, 1000);
+                        };
+                    }
                     
                 } else {
                     console.log('Unknown avatar type:', selectedAvatar.type);

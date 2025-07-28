@@ -19,4 +19,4 @@
 api-keys.js
 api-keys.json
 .env
-.env.local
+.env.localvenv/

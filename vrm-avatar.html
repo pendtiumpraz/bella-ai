@@ -73,6 +73,12 @@
             font-family: Arial, sans-serif;
         }
     </style>
+    <script type="module">
+        import { getAllModels } from './vtuberModels.js';
+        
+        // Make models available globally
+        window.vrmModels = getAllModels();
+    </script>
 </head>
 <body>
     <div id="loading">Loading VRM Model...</div>
@@ -86,15 +92,7 @@
     <div class="model-selector">
         <label>Select Model:</label>
         <select id="model-select">
-            <option value="">-- Select Model --</option>
-            <option value="vtuber/Galih Hoodie.vrm">Galih Hoodie</option>
-            <option value="vtuber/Galih Hoodie Edmuku.vrm">Galih Hoodie Edmuku</option>
-            <option value="vtuber/Galih Hoodie Esteh.vrm">Galih Hoodie Esteh</option>
-            <option value="vtuber/Galih T shirt Aveecena.vrm">Galih T-shirt</option>
-            <option value="vtuber/Ai_Hoshino_.vrm">Ai Hoshino</option>
-            <option value="vtuber/Anya_Forger.vrm">Anya Forger</option>
-            <option value="vtuber/Nezuko_kamado.vrm">Nezuko Kamado</option>
-            <option value="vtuber/Fern.vrm">Fern</option>
+            <option value="">-- Loading Models --</option>
         </select>
     </div>
     
@@ -512,9 +510,26 @@
             }
         }
         
+        // Populate model selector
+        function populateModelSelector() {
+            const select = document.getElementById('model-select');
+            select.innerHTML = '<option value="">-- Select Model --</option>';
+            
+            if (window.vrmModels) {
+                window.vrmModels.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.path;
+                    option.textContent = model.name;
+                    select.appendChild(option);
+                });
+            }
+        }
+        
         // Model selector
         document.getElementById('model-select').addEventListener('change', (e) => {
-            loadVRM(e.target.value);
+            if (e.target.value) {
+                loadVRM(e.target.value);
+            }
         });
         
         // Window resize
@@ -566,10 +581,15 @@
             setTimeout(function() {
                 if (typeof THREE !== 'undefined' && typeof THREE.VRM !== 'undefined') {
                     window.initVRM();
+                    // Populate model selector after initialization
+                    setTimeout(populateModelSelector, 100);
                 } else {
                     console.error('Libraries not loaded yet, waiting...');
                     // Retry after delay
-                    setTimeout(window.initVRM, 2000);
+                    setTimeout(function() {
+                        window.initVRM();
+                        setTimeout(populateModelSelector, 100);
+                    }, 2000);
                 }
             }, 1000);
         });

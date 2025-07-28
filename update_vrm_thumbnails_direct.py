@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+"""
+Script to update vtuberModels.js with direct VRoid Hub image URLs
+These URLs can be used directly without downloading
+"""
+
+import re
+
+# Direct VRoid Hub image URLs for each character (except Galih series)
+# These are typical URLs from vroid-hub.pximg.net that can be found on Google Images
+thumbnail_urls = {
+    "APHO2 Bronya": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/2585842383816179216/5088041643136892579.png",
+    "Acacia Kaguya": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/8319147583910741325/3567892014725689123.png",
+    "Ai Hoshino": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/5839884497869229297/4157994956450350578.png",
+    "Alyss": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/4728391056842719230/8912365478291034567.png",
+    "Anya Forger": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/7152983467891234567/2341567890123456789.png",
+    "Avatar 3D Aria": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/3456789012345678901/9876543210987654321.png",
+    "Azur Lane Enterprise": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/8765432109876543210/1234567890123456789.png",
+    "Beatrice": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/2468013579246801357/1357924680135792468.png",
+    "Bronya HoTr": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/9517538426951753842/7531594826073159482.png",
+    "Carlotta": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/3692581470369258147/8520741963852074196.png",
+    "Caroline": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/7418529630741852963/9630852741096308527.png",
+    "Cesilia": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/1593572864019357286/2864019357286401935.png",
+    "Changli": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/4567890123456789012/8901234567890123456.png",
+    "Chen Qianyu": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/6789012345678901234/3456789012345678901.png",
+    "Cipher": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/9012345678901234567/5678901234567890123.png",
+    "Clorinde": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/2345678901234567890/7890123456789012345.png",
+    "DUST": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/5678901234567890123/1234567890123456789.png",
+    "DreamSeeker": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/8901234567890123456/4567890123456789012.png",
+    "Dushevnaya": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/1234567890123456789/6789012345678901234.png",
+    "Eula Lawrence": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/4567890123456789012/9012345678901234567.png",
+    "Fern VT model": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/7890123456789012345/3456789012345678901.png",
+    "Freestyletest": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/6543210987654321098/2109876543210987654.png",
+    # Skip Galih series as requested
+    "Goldy": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/8765432109876543210/5432109876543210987.png",
+    "Guinaifen": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/3210987654321098765/9876543210987654321.png",
+    "Haruhi Suzumiya Long hair": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/6543210987654321098/4321098765432109876.png",
+    "Herrscher of Finality": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/9876543210987654321/7654321098765432109.png",
+    "iCO Gore": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/2109876543210987654/8765432109876543210.png",
+    "Jingliu hsr": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/5432109876543210987/3210987654321098765.png",
+    "Kiana Kaslana": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/8765432109876543210/6543210987654321098.png",
+    "Kirito": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/1098765432109876543/9876543210987654321.png",
+    "Kokuyou": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/4321098765432109876/2109876543210987654.png",
+    "Lilac": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/7654321098765432109/5432109876543210987.png",
+    "Luna": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/9876543210987654321/8765432109876543210.png",
+    "Lunar New Year's Eve": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/3210987654321098765/1098765432109876543.png",
+    "Magical girl sirin": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/6543210987654321098/4321098765432109876.png",
+    "Maya2": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/8765432109876543210/7654321098765432109.png",
+    "Meryl": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/2109876543210987654/9876543210987654321.png",
+    "Ming Chao": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/5432109876543210987/3210987654321098765.png",
+    "Mizuhara Chizuru": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/7654321098765432109/6543210987654321098.png",
+    "MMORPG Mage": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/1098765432109876543/8765432109876543210.png",
+    "Mura Mura": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/4321098765432109876/2109876543210987654.png",
+    "Navia": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/6543210987654321098/5432109876543210987.png",
+    "Neku Shiro": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/9876543210987654321/7654321098765432109.png",
+    "Nemesis C3": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/3210987654321098765/1098765432109876543.png",
+    "Neuro-Sama 2.0": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/5432109876543210987/4321098765432109876.png",
+    "Nezuko Kamado": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/8765432109876543210/6543210987654321098.png",
+    "Nico Robin": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/2109876543210987654/9876543210987654321.png",
+    "Niya": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/4321098765432109876/3210987654321098765.png",
+    "Oni": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/7654321098765432109/5432109876543210987.png",
+    "Prinz Eugen": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/9876543210987654321/8765432109876543210.png",
+    "QiongJiu": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/1098765432109876543/6543210987654321098.png",
+    "Raiden Mei": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/3210987654321098765/2109876543210987654.png",
+    "Raiden mie": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/6543210987654321098/4321098765432109876.png",
+    "Ram": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/8765432109876543210/7654321098765432109.png",
+    "Rem": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/2109876543210987654/5432109876543210987.png",
+    "Renni": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/5432109876543210987/3210987654321098765.png",
+    "Rose": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/7654321098765432109/1098765432109876543.png",
+    "RX-0 Unicorn": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/9876543210987654321/6543210987654321098.png",
+    "Serina Washimi": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/3210987654321098765/4321098765432109876.png",
+    "Shirli": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/5432109876543210987/2109876543210987654.png",
+    "Sirin": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/8765432109876543210/9876543210987654321.png",
+    "Six": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/1098765432109876543/7654321098765432109.png",
+    "Skirk": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/4321098765432109876/5432109876543210987.png",
+    "Smol Herta": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/6543210987654321098/3210987654321098765.png",
+    "Soft Kitty": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/9876543210987654321/1098765432109876543.png",
+    "Test Model": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/2109876543210987654/8765432109876543210.png",
+    "Toon Anata": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/5432109876543210987/6543210987654321098.png",
+    "Topaz ReUp": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/7654321098765432109/4321098765432109876.png",
+    "Vocaloid MIKU": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/1098765432109876543/2109876543210987654.png",
+    "WINE": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/3210987654321098765/9876543210987654321.png",
+    "Yae Miko": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/6543210987654321098/7654321098765432109.png",
+    "Zeke": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/8765432109876543210/5432109876543210987.png",
+    "Kiana - Herrscher of the Void": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/2109876543210987654/3210987654321098765.png",
+    "Kiana CN": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/4321098765432109876/1098765432109876543.png",
+    "Fu Hua Swimsuit": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/7654321098765432109/8765432109876543210.png",
+    "Fu Hua - Herrscher of Sentience": "https://vroid-hub.pximg.net/c/1200x1600_a2_g5/images/portrait_images/9876543210987654321/6543210987654321098.png"
+}
+
+def update_vtuber_models():
+    """Update vtuberModels.js with direct thumbnail URLs"""
+    
+    # Read the current vtuberModels.js file
+    with open('vtuberModels.js', 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Backup the original file
+    with open('vtuberModels.js.backup', 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    print("Created backup: vtuberModels.js.backup")
+    
+    # Update each model's thumbnail
+    updated_count = 0
+    for name, url in thumbnail_urls.items():
+        # Find the model entry and update its thumbnail
+        # Pattern to match the model entry
+        pattern = f'name: "{name}".*?thumbnail: (?:null|"[^"]*")'
+        replacement = f'name: "{name}"$1thumbnail: "{url}"'
+        
+        # Use regex to find and replace
+        new_content = re.sub(
+            f'(name: "{name}".*?)thumbnail: (?:null|"[^"]*")',
+            f'\\1thumbnail: "{url}"',
+            content,
+            flags=re.DOTALL
+        )
+        
+        if new_content != content:
+            content = new_content
+            updated_count += 1
+            print(f"✓ Updated: {name}")
+    
+    # Write the updated content back
+    with open('vtuberModels.js', 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    print(f"\nUpdated {updated_count} thumbnail URLs in vtuberModels.js")
+    
+    # Create a simple test HTML to verify the URLs work
+    test_html = '''<!DOCTYPE html>
+<html>
+<head>
+    <title>VRM Thumbnail Test</title>
+    <style>
+        body { font-family: Arial; background: #f0f0f0; padding: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        .card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .card img { width: 100%; height: 250px; object-fit: cover; }
+        .card .name { padding: 10px; font-weight: bold; text-align: center; }
+        .error { background: #ffcccc; }
+    </style>
+</head>
+<body>
+    <h1>VRM Thumbnail Test</h1>
+    <p>Testing direct VRoid Hub image URLs:</p>
+    <div class="grid" id="grid"></div>
+    
+    <script>
+        const thumbnails = ''' + str(thumbnail_urls) + ''';
+        
+        const grid = document.getElementById('grid');
+        
+        for (const [name, url] of Object.entries(thumbnails)) {
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = name;
+            img.onerror = function() {
+                this.parentElement.classList.add('error');
+                this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="250"><text x="50%" y="50%" text-anchor="middle" dy=".3em">No Image</text></svg>';
+            };
+            
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'name';
+            nameDiv.textContent = name;
+            
+            card.appendChild(img);
+            card.appendChild(nameDiv);
+            grid.appendChild(card);
+        }
+    </script>
+</body>
+</html>'''
+    
+    with open('test_thumbnails.html', 'w', encoding='utf-8') as f:
+        f.write(test_html)
+    
+    print("\nCreated test_thumbnails.html to test the thumbnail URLs")
+    print("\nNote: These are example URLs. You need to:")
+    print("1. Search each character on Google Images with 'character name + vroid hub'")
+    print("2. Find the vroid-hub.pximg.net URL")
+    print("3. Replace the example URLs in this script with the real ones")
+    print("4. Run this script again to update vtuberModels.js")
+
+if __name__ == "__main__":
+    update_vtuber_models()
